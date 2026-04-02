@@ -357,6 +357,34 @@ function avigoTieneSession() {
   return _avigoSession && _avigoSession.token;
 }
 
+// Renovar token en background si está próximo a vencer
+function avigoRenovarTokenSiNecesario() {
+  if (!avigoTieneSession()) return;
+  try {
+    // Decodificar el JWT para ver cuándo vence
+    var parts = _avigoSession.token.split('.');
+    if (parts.length !== 3) return;
+    var payload = JSON.parse(atob(parts[1]));
+    var ahora = Math.floor(Date.now() / 1000);
+    var diasRestantes = (payload.exp - ahora) / 86400;
+    // Si quedan menos de 30 días, renovar
+    if (diasRestantes < 30) {
+      fetch(AVIGO_API + '/auth/refresh', {
+        method: 'POST',
+        headers: avigoHeaders()
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.token) {
+          _avigoSession.token = data.token;
+          try { localStorage.setItem('avigo_session', JSON.stringify(_avigoSession)); } catch(e) {}
+        }
+      })
+      .catch(function() { /* silencioso */ });
+    }
+  } catch(e) { /* silencioso */ }
+}
+
 // Headers con JWT para llamadas autenticadas
 function avigoHeaders() {
   return {
@@ -442,6 +470,8 @@ document.addEventListener('DOMContentLoaded', function() {
   if (urlParams.get('reset')) {
     setTimeout(function(){ nav('reset'); }, 500);
   }
+  // Renovar token en background si está próximo a vencer
+  setTimeout(avigoRenovarTokenSiNecesario, 3000);
 });
 </script>
 </head>
