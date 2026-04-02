@@ -1054,7 +1054,7 @@ function navBar(active){
   }
   function iconIA(a){
     var col=a?'#16A34A':'#C4C4C4';
-    return '<span style="font-size:13px;font-weight:900;color:'+col+';letter-spacing:-.5px;line-height:1">IA</span>';
+    return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="'+col+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
   }
   var items=[
     {id:'dash',      label:'Inicio',     icon:function(a){return iconGrid(a);}},
@@ -5707,7 +5707,7 @@ navBar = function(active){
   }
   function iconIA(a){
     var col=a?'#16A34A':'#C4C4C4';
-    return '<span style="font-size:13px;font-weight:900;color:'+col+';letter-spacing:-.5px;line-height:1">IA</span>';
+    return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="'+col+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
   }
   var items = [
     {id:'dash',      label:'Inicio',     icon:function(a){return iconGrid(a);}},
@@ -6270,7 +6270,7 @@ screens.ia = function(){
   sc += '<div style="background:#fff;padding:14px 20px;box-shadow:0 2px 12px rgba(0,0,0,.04);flex-shrink:0">';
   sc += '<div style="display:flex;align-items:center;gap:12px">';
   sc += '<div style="width:42px;height:42px;background:#16A34A;border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">';
-  sc += '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" fill="#fff"/></svg>';
+  sc += '<span style="font-size:15px;font-weight:900;color:#fff;letter-spacing:-.5px">IA</span>';
   sc += '</div>';
   sc += '<div><div style="font-size:17px;font-weight:900;color:#111827">Don Gallo 🐓</div>';
   sc += '<div style="font-size:11px;font-weight:600;color:#9CA3AF;margin-top:1px">Tu consejero avícola personal</div>';
