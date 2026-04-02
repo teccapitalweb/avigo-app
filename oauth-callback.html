@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<title>AviGo - Iniciando sesion...</title>
+<style>
+  body { font-family: Arial, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #EDFAF3; }
+  .box { text-align: center; padding: 32px; }
+  .logo { font-size: 32px; font-weight: 900; color: #16A34A; margin-bottom: 8px; }
+  .msg { color: #6B7280; font-size: 14px; }
+  .spinner { width: 32px; height: 32px; border: 3px solid #D1FAE5; border-top-color: #16A34A; border-radius: 50%; animation: spin .8s linear infinite; margin: 16px auto; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="logo">🐓 AviGo</div>
+  <div class="spinner"></div>
+  <div class="msg">Verificando tu cuenta de Google...</div>
+</div>
+<script>
+// Extraer id_token del hash de la URL (response_type=id_token)
+function getParam(name) {
+  var hash = window.location.hash.substring(1);
+  var params = new URLSearchParams(hash);
+  return params.get(name);
+}
+
+var idToken = getParam('id_token');
+var error   = getParam('error');
+
+if (idToken) {
+  // Enviar token a la ventana padre
+  if (window.opener) {
+    window.opener.postMessage({ type: 'AVIGO_GOOGLE_TOKEN', credential: idToken }, '*');
+    document.querySelector('.msg').textContent = 'Sesion iniciada. Cerrando...';
+    setTimeout(function(){ window.close(); }, 800);
+  }
+} else if (error) {
+  document.querySelector('.msg').textContent = 'Error: ' + error + '. Cierra esta ventana.';
+} else {
+  document.querySelector('.msg').textContent = 'No se recibio el token. Cierra esta ventana e intenta de nuevo.';
+}
+</script>
+</body>
+</html>
