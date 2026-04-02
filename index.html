@@ -3637,6 +3637,35 @@ function guardarPrecios(){
   showToast('✓ Precios actualizados');
 }
 
+// ─── ACTIVAR NOTIFICACIONES PUSH ─────────────────────────────
+function activarNotificacionesPush() {
+  if (!('Notification' in window)) {
+    showToast('Tu navegador no soporta notificaciones');
+    return;
+  }
+  Notification.requestPermission().then(function(permiso) {
+    if (permiso === 'granted') {
+      suscribirPush(function(ok, err) {
+        if (ok) {
+          showToast('Notificaciones activadas');
+          // Recargar seccion de recordatorios para mostrar el estado
+          var sc = document.getElementById('screen');
+          if (sc) {
+            var perfil = screens['perfil'];
+            if (perfil) sc.innerHTML = perfil();
+            setTimeout(bindRecordatorios, 100);
+            setTimeout(bindLotes, 100);
+          }
+        } else {
+          showToast('Error al activar notificaciones: ' + (err || 'desconocido'));
+        }
+      });
+    } else if (permiso === 'denied') {
+      showToast('Permiso denegado. Activalo desde Configuracion del navegador');
+    }
+  });
+}
+
 // ─── RECUPERAR CONTRASEÑA ───────────────────────────────────
 function avigoForgotPassword() {
   var email = (document.getElementById('forgot-email') || {}).value || '';
@@ -7727,6 +7756,30 @@ function buildRecordatoriosHTML(){
   ];
   var recsGuardados = granja.recordatorios || {};
   var sc = '<div style="background:#fff;border-radius:18px;box-shadow:0 4px 16px rgba(0,0,0,.06);padding:16px;margin-bottom:12px">';
+
+  // ── BANNER DE ACTIVAR NOTIFICACIONES PUSH ──
+  var _permiso = (typeof Notification !== 'undefined') ? Notification.permission : 'default';
+  var _suscrito = estaSuscritoPush ? estaSuscritoPush() : false;
+  if (_permiso === 'granted' && _suscrito) {
+    sc += '<div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:12px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px">'
+      + '<span style="font-size:18px">🔔</span>'
+      + '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:#166534">Notificaciones activas</div>'
+      + '<div style="font-size:11px;color:#16A34A">Recibiras alertas en tu telefono</div></div>'
+      + '<button onclick="probarNotificacion()" style="font-size:11px;font-weight:700;color:#16A34A;background:#fff;border:1.5px solid #BBF7D0;border-radius:8px;padding:5px 10px;cursor:pointer;font-family:inherit">Probar</button>'
+      + '</div>';
+  } else if (_permiso === 'denied') {
+    sc += '<div style="background:#FEF2F2;border:1.5px solid #FECACA;border-radius:12px;padding:10px 14px;margin-bottom:12px">'
+      + '<div style="font-size:12px;font-weight:700;color:#DC2626;margin-bottom:2px">🔕 Notificaciones bloqueadas</div>'
+      + '<div style="font-size:11px;color:#EF4444">Ve a Configuracion del navegador y permite las notificaciones para AviGo</div>'
+      + '</div>';
+  } else {
+    sc += '<div style="background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:12px;padding:12px 14px;margin-bottom:12px">'
+      + '<div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:4px">🔔 Activa las notificaciones</div>'
+      + '<div style="font-size:11px;color:#78350F;margin-bottom:10px;line-height:1.5">Recibe recordatorios en tu telefono aunque la app este cerrada.</div>'
+      + '<button onclick="activarNotificacionesPush()" style="width:100%;padding:10px;background:#F59E0B;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Activar notificaciones</button>'
+      + '</div>';
+  }
+
   sc += '<p style="font-size:11px;color:#9CA3AF;margin-bottom:12px;line-height:1.5">Activa cada recordatorio, define la frecuencia y los horarios de tu jornada.</p>';
   recsDef.forEach(function(rec){
     var data   = recsGuardados[rec.id] || {activo:(rec.id==='rec-alim'||rec.id==='rec-huevo'), horas:[], frec:'diario', dias:[]};
@@ -8103,16 +8156,40 @@ function toggleRec2(id){
     var dot = tog.querySelector('span');
     if(dot){ dot.style.right = data.activo ? '2px' : ''; dot.style.left = data.activo ? '' : '2px'; }
   }
-  // Actualizar color de la card
   var card = tog ? tog.closest('div[style*="border-radius:14px"]') : null;
   if(card){
     card.style.background = data.activo ? '#F0FDF4' : '#F9FAFB';
     card.style.borderColor = data.activo ? '#BBF7D0' : '#F3F4F6';
   }
   if(hrs) hrs.style.display = data.activo ? 'block' : 'none';
-  // Re-atar listeners a los nuevos botones visibles
   if(data.activo) setTimeout(bindRecordatorios, 30);
-  showToast(data.activo ? '✓ Recordatorio activado' : 'Recordatorio desactivado');
+
+  // Si activo y no tiene push, sugerir activar
+  if (data.activo && typeof estaSuscritoPush === 'function' && !estaSuscritoPush()) {
+    setTimeout(function() {
+      if (confirm('Para recibir esta notificacion en tu telefono necesitas activar los permisos.\n\n¿Activar ahora?')) {
+        activarNotificacionesPush();
+      }
+    }, 400);
+  }
+
+  // Sincronizar con backend
+  if (avigoTieneSession()) {
+    var tipoMap = { 'rec-alim':'alimentacion','rec-huevo':'recoleccion','rec-bebedero':'bebederos','rec-comedero':'comederos','rec-cama':'cama','rec-galpon':'galpon' };
+    var tipo = tipoMap[id] || id;
+    var todosRecs = granja.recordatorios || {};
+    var recsArray = Object.keys(tipoMap).map(function(k) {
+      var r = todosRecs[k] || {};
+      return { tipo: tipoMap[k], activo: r.activo||false, hora: (r.horas&&r.horas[0])||'07:00', frecuencia: r.frec||'diario' };
+    });
+    fetch(AVIGO_API + '/push/recordatorios', {
+      method: 'POST',
+      headers: avigoHeaders(),
+      body: JSON.stringify({ recordatorios: recsArray })
+    }).catch(function() {});
+  }
+
+  showToast(data.activo ? 'Recordatorio activado' : 'Recordatorio desactivado');
 }
 
 function agregarHoraRec(id){
