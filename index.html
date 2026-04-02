@@ -1069,13 +1069,13 @@ const screens = {
           <input class="inp" id="login-email" placeholder="tu@correo.com" type="email" autocomplete="email"/>
         </div>
         <div class="inp-group">
-          <div class="flex justify-between items-center" style="margin-bottom:6px">
-            <label class="t-label" style="margin-bottom:0">Contraseña</label>
-            <a style="font-size:12px;cursor:pointer;color:var(--green)" onclick="nav('forgot')">¿La olvidaste?</a>
-          </div>
+          <label class="t-label">Contraseña</label>
           <div style="position:relative">
             <input class="inp" id="login-pass" placeholder="••••••••" type="password" autocomplete="current-password" style="padding-right:48px"/>
             <button onclick="togglePass('login-pass',this)" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;color:var(--gray-400);font-size:13px;font-weight:700">Ver</button>
+          </div>
+          <div style="text-align:right;margin-top:6px">
+            <a style="font-size:12px;cursor:pointer;color:var(--green);font-weight:600" onclick="nav('forgot')">¿La olvidaste?</a>
           </div>
         </div>
         <div id="login-error" style="display:none;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:10px 14px;font-size:13px;color:#DC2626;font-weight:600"></div>
@@ -1146,8 +1146,8 @@ const screens = {
           <div style="background:var(--gray-50);border-radius:12px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px">
             <input type="checkbox" id="terms-check" style="margin-top:2px;accent-color:var(--green);width:16px;height:16px;cursor:pointer"/>
             <label for="terms-check" style="font-size:12px;color:var(--gray-500);line-height:1.5;cursor:pointer">
-              Acepto los <span style="color:var(--green);font-weight:700">Términos de uso</span> y la
-              <span style="color:var(--green);font-weight:700">Política de privacidad</span> de AviGo
+              Acepto los <a href="terminos.html" target="_blank" style="color:var(--green);font-weight:700;text-decoration:underline">Términos de uso</a> y la
+              <a href="privacidad.html" target="_blank" style="color:var(--green);font-weight:700;text-decoration:underline">Política de privacidad</a> de AviGo
             </label>
           </div>
 
