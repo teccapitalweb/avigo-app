@@ -427,26 +427,16 @@ function avigoCargarDatos() {
   .catch(function() { nav('dash'); });
 }
 
-// Inicializar Google Sign-In cuando el SDK cargue
-function initGoogleSignIn() {
-  if (typeof google === 'undefined' || !google.accounts) {
-    setTimeout(initGoogleSignIn, 500);
-    return;
+// ── GOOGLE OAUTH2 POPUP ─────────────────────────────────────
+// Escuchar mensajes del popup de Google
+window.addEventListener('message', function(event) {
+  if (event.data && event.data.type === 'AVIGO_GOOGLE_TOKEN') {
+    avigoLoginGoogle(event.data.credential);
   }
-  google.accounts.id.initialize({
-    client_id: GOOGLE_CLIENT_ID,
-    callback: function(response) {
-      avigoLoginGoogle(response.credential);
-    },
-    auto_select: false,
-    cancel_on_tap_outside: false,
-    ux_mode: 'popup'
-  });
-}
+});
 
 // Iniciar cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', function() {
-  setTimeout(initGoogleSignIn, 1000);
   // Si viene con ?reset=TOKEN en la URL, ir directo a pantalla de reset
   var urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('reset')) {
@@ -3691,22 +3681,25 @@ function avigoRegistrarEmail() {
 // ─── AVIGO BACKEND — FUNCIONES DE UI ────────────────────────
 // Inicia el flujo de Google Sign-In
 function avigoIniciarGoogle() {
-  if (typeof google === 'undefined' || !google.accounts) {
-    showToast('Cargando Google Sign-In...');
-    setTimeout(avigoIniciarGoogle, 1500);
-    return;
+  // Usar OAuth2 popup directo — funciona en todos los navegadores
+  var w = 500, h = 600;
+  var left = Math.round((screen.width - w) / 2);
+  var top  = Math.round((screen.height - h) / 2);
+  var redirectUri = encodeURIComponent(window.location.origin + window.location.pathname + 'oauth-callback.html');
+  var url = 'https://accounts.google.com/o/oauth2/v2/auth'
+    + '?client_id=' + GOOGLE_CLIENT_ID
+    + '&redirect_uri=' + redirectUri
+    + '&response_type=id_token'
+    + '&scope=openid%20email%20profile'
+    + '&nonce=' + Math.random().toString(36).slice(2)
+    + '&prompt=select_account';
+
+  var popup = window.open(url, 'google_login',
+    'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',scrollbars=yes');
+
+  if (!popup) {
+    showToast('Permite popups para iniciar sesion con Google');
   }
-  // Re-inicializar con callback explícito y disparar One Tap
-  google.accounts.id.initialize({
-    client_id: GOOGLE_CLIENT_ID,
-    callback: function(response) {
-      avigoLoginGoogle(response.credential);
-    },
-    auto_select: false,
-    cancel_on_tap_outside: false,
-    ux_mode: 'popup'
-  });
-  google.accounts.id.prompt();
 }
 
 // Botón de logout en perfil
