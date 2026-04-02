@@ -3872,9 +3872,24 @@ function avigoIniciarGoogle() {
 function avigoBotonLogout() {
   if (!avigoTieneSession()) { showToast('No hay sesion activa'); return; }
   var nombre = _avigoSession && _avigoSession.usuario ? (_avigoSession.usuario.nombre || _avigoSession.usuario.email) : 'tu cuenta';
-  if (confirm('Cerrar sesion de ' + nombre + '?\n\nTus datos locales se mantienen guardados en este dispositivo.')) {
+  // Usar dialogo personalizado en lugar de confirm() nativo (que muestra la URL en APK)
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px';
+  overlay.innerHTML = '<div style="background:#fff;border-radius:20px;padding:24px;width:100%;max-width:320px;text-align:center">'
+    + '<div style="font-size:32px;margin-bottom:12px">🚪</div>'
+    + '<div style="font-size:17px;font-weight:800;color:#111827;margin-bottom:8px">Cerrar sesion</div>'
+    + '<div style="font-size:13px;color:#6B7280;margin-bottom:24px;line-height:1.5">Tus datos locales se mantienen guardados en este dispositivo.</div>'
+    + '<button id="btn-logout-si" style="width:100%;padding:13px;background:#DC2626;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">Cerrar sesion</button>'
+    + '<button id="btn-logout-no" style="width:100%;padding:13px;background:#F3F4F6;color:#374151;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">Cancelar</button>'
+    + '</div>';
+  document.body.appendChild(overlay);
+  document.getElementById('btn-logout-si').onclick = function() {
+    document.body.removeChild(overlay);
     avigoLogout();
-  }
+  };
+  document.getElementById('btn-logout-no').onclick = function() {
+    document.body.removeChild(overlay);
+  };
 }
 
 // ─── INTRO ONBOARDING ────────────────────────────────────────
