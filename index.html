@@ -439,7 +439,8 @@ function initGoogleSignIn() {
       avigoLoginGoogle(response.credential);
     },
     auto_select: false,
-    cancel_on_tap_outside: true
+    cancel_on_tap_outside: false,
+    ux_mode: 'popup'
   });
 }
 
@@ -3691,32 +3692,21 @@ function avigoRegistrarEmail() {
 // Inicia el flujo de Google Sign-In
 function avigoIniciarGoogle() {
   if (typeof google === 'undefined' || !google.accounts) {
-    // SDK no cargó aún (offline) — ir al onboarding local
-    showToast('Modo offline — configura tu granja localmente');
-    nav('ob1');
+    showToast('Cargando Google Sign-In...');
+    setTimeout(avigoIniciarGoogle, 1500);
     return;
   }
-  google.accounts.id.prompt(function(notification) {
-    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-      // El prompt no se mostró — usar el flujo de botón manual
-      google.accounts.id.renderButton(
-        document.getElementById('google-btn-container') || document.body,
-        { theme: 'outline', size: 'large' }
-      );
-      // Fallback: abrir popup de Google
-      var width = 500, height = 600;
-      var left = (window.innerWidth - width) / 2;
-      var top = (window.innerHeight - height) / 2;
-      var popup = window.open(
-        'https://accounts.google.com/o/oauth2/v2/auth?' +
-        'client_id=' + GOOGLE_CLIENT_ID +
-        '&redirect_uri=' + encodeURIComponent(AVIGO_API + '/auth/google/callback') +
-        '&response_type=code&scope=openid%20email%20profile',
-        'google_login',
-        'width=' + width + ',height=' + height + ',left=' + left + ',top=' + top
-      );
-    }
+  // Re-inicializar con callback explícito y disparar One Tap
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: function(response) {
+      avigoLoginGoogle(response.credential);
+    },
+    auto_select: false,
+    cancel_on_tap_outside: false,
+    ux_mode: 'popup'
   });
+  google.accounts.id.prompt();
 }
 
 // Botón de logout en perfil
