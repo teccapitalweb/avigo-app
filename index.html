@@ -3623,30 +3623,61 @@ function guardarPrecios(){
 }
 
 // ─── ACTIVAR NOTIFICACIONES PUSH ─────────────────────────────
+function _recargarBannerPush() {
+  // Recargar solo el banner de notificaciones sin hacer scroll
+  var bannerEl = document.querySelector('#push-banner-container');
+  if (bannerEl) {
+    // Actualizar solo el banner inline sin recargar toda la pantalla
+    var esNativo = (typeof window.AVIGO_NATIVE !== 'undefined' && window.AVIGO_NATIVE);
+    var pushActivo = esNativo ? !!window.AVIGO_PUSH_TOKEN : (typeof estaSuscritoPush === 'function' && estaSuscritoPush());
+    if (pushActivo) {
+      bannerEl.innerHTML = '<div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:12px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px">'
+        + '<span style="font-size:18px">🔔</span>'
+        + '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:#166534">Notificaciones activas</div>'
+        + '<div style="font-size:11px;color:#16A34A">Recibiras alertas en tu telefono</div></div>'
+        + '<button onclick="probarNotificacion()" style="font-size:11px;font-weight:700;color:#16A34A;background:#fff;border:1.5px solid #BBF7D0;border-radius:8px;padding:5px 10px;cursor:pointer;font-family:inherit">Probar</button>'
+        + '</div>';
+    }
+  } else {
+    // Si no existe el banner container, recargar pantalla preservando scroll
+    var scrollEl = document.querySelector('.scroll');
+    var scrollPos = scrollEl ? scrollEl.scrollTop : 0;
+    var sc = document.getElementById('screen');
+    if (sc && typeof screens !== 'undefined' && screens['perfil']) {
+      sc.innerHTML = screens['perfil']();
+      if (typeof bindRecordatorios === 'function') setTimeout(bindRecordatorios, 150);
+      if (typeof bindLotes === 'function') setTimeout(bindLotes, 150);
+      // Restaurar posicion del scroll
+      setTimeout(function() {
+        var newScroll = document.querySelector('.scroll');
+        if (newScroll) newScroll.scrollTop = scrollPos;
+      }, 50);
+    }
+  }
+}
+
 function activarNotificacionesPush() {
   var esNativo = (typeof window.AVIGO_NATIVE !== 'undefined' && window.AVIGO_NATIVE);
 
   if (esNativo) {
     if (typeof window.ReactNativeWebView !== 'undefined') {
+      showToast('Activando notificaciones...');
       window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'REGISTER_PUSH' }));
-      // Polling cada 300ms — detectar cuando llega el token y poner banner verde
+      // Polling para detectar cuando llega el token
       var _attempts = 0;
       var _timer = setInterval(function() {
         _attempts++;
         if (window.AVIGO_PUSH_TOKEN) {
           clearInterval(_timer);
-          // Recargar perfil para mostrar banner verde
-          var sc = document.getElementById('screen');
-          if (sc && typeof screens !== 'undefined' && screens['perfil']) {
-            sc.innerHTML = screens['perfil']();
-            if (typeof bindRecordatorios === 'function') setTimeout(bindRecordatorios, 150);
-            if (typeof bindLotes === 'function') setTimeout(bindLotes, 150);
-          }
-        } else if (_attempts >= 50) {
+          showToast('Notificaciones activadas');
+          _recargarBannerPush();
+        } else if (_attempts >= 60) {
           clearInterval(_timer);
-          showToast('Ve a Ajustes del telefono y activa las notificaciones de AviGo');
+          showToast('Ve a Ajustes > AviGo > Notificaciones y activalas');
         }
       }, 300);
+    } else {
+      showToast('Error: ReactNativeWebView no disponible');
     }
     return;
   }
@@ -3660,14 +3691,9 @@ function activarNotificacionesPush() {
     if (permiso === 'granted') {
       suscribirPush(function(ok, err) {
         if (ok) {
-          var sc = document.getElementById('screen');
-          if (sc && typeof screens !== 'undefined' && screens['perfil']) {
-            sc.innerHTML = screens['perfil']();
-            if (typeof bindRecordatorios === 'function') setTimeout(bindRecordatorios, 150);
-            if (typeof bindLotes === 'function') setTimeout(bindLotes, 150);
-          }
+          _recargarBannerPush();
         } else {
-          showToast('Error al activar notificaciones: ' + (err || 'desconocido'));
+          showToast('Error al activar: ' + (err || 'desconocido'));
         }
       });
     } else if (permiso === 'denied') {
@@ -3897,24 +3923,30 @@ function avigoIniciarGoogle() {
 function avigoBotonLogout() {
   if (!avigoTieneSession()) { showToast('No hay sesion activa'); return; }
   var nombre = _avigoSession && _avigoSession.usuario ? (_avigoSession.usuario.nombre || _avigoSession.usuario.email) : 'tu cuenta';
-  // Usar dialogo personalizado en lugar de confirm() nativo (que muestra la URL en APK)
-  var overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px';
-  overlay.innerHTML = '<div style="background:#fff;border-radius:20px;padding:24px;width:100%;max-width:320px;text-align:center">'
-    + '<div style="font-size:32px;margin-bottom:12px">🚪</div>'
-    + '<div style="font-size:17px;font-weight:800;color:#111827;margin-bottom:8px">Cerrar sesion</div>'
-    + '<div style="font-size:13px;color:#6B7280;margin-bottom:24px;line-height:1.5">Tus datos locales se mantienen guardados en este dispositivo.</div>'
-    + '<button id="btn-logout-si" style="width:100%;padding:13px;background:#DC2626;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">Cerrar sesion</button>'
-    + '<button id="btn-logout-no" style="width:100%;padding:13px;background:#F3F4F6;color:#374151;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">Cancelar</button>'
-    + '</div>';
-  document.body.appendChild(overlay);
-  document.getElementById('btn-logout-si').onclick = function() {
-    document.body.removeChild(overlay);
-    avigoLogout();
-  };
-  document.getElementById('btn-logout-no').onclick = function() {
-    document.body.removeChild(overlay);
-  };
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:20px;padding:24px;width:100%;max-width:320px;text-align:center';
+  var title = document.createElement('div');
+  title.style.cssText = 'font-size:17px;font-weight:800;color:#111827;margin-bottom:8px';
+  title.textContent = 'Cerrar sesion';
+  var desc = document.createElement('div');
+  desc.style.cssText = 'font-size:13px;color:#6B7280;margin-bottom:24px;line-height:1.5';
+  desc.textContent = 'Tus datos locales se mantienen guardados en este dispositivo.';
+  var btnSi = document.createElement('button');
+  btnSi.style.cssText = 'width:100%;padding:13px;background:#DC2626;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px;display:block';
+  btnSi.textContent = 'Cerrar sesion';
+  var btnNo = document.createElement('button');
+  btnNo.style.cssText = 'width:100%;padding:13px;background:#F3F4F6;color:#374151;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;display:block';
+  btnNo.textContent = 'Cancelar';
+  box.appendChild(title);
+  box.appendChild(desc);
+  box.appendChild(btnSi);
+  box.appendChild(btnNo);
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  btnSi.onclick = function() { document.body.removeChild(ov); avigoLogout(); };
+  btnNo.onclick = function() { document.body.removeChild(ov); };
 }
 
 // ─── INTRO ONBOARDING ────────────────────────────────────────
@@ -7800,27 +7832,32 @@ function buildRecordatoriosHTML(){
   var sc = '<div style="background:#fff;border-radius:18px;box-shadow:0 4px 16px rgba(0,0,0,.06);padding:16px;margin-bottom:12px">';
 
   // ── BANNER DE ACTIVAR NOTIFICACIONES PUSH ──
+  var _esNativo = (typeof window.AVIGO_NATIVE !== 'undefined' && window.AVIGO_NATIVE);
   var _permiso = (typeof Notification !== 'undefined') ? Notification.permission : 'default';
-  var _suscrito = estaSuscritoPush ? estaSuscritoPush() : false;
-  if (_permiso === 'granted' && _suscrito) {
+  var _suscrito = (typeof estaSuscritoPush === 'function') ? estaSuscritoPush() : false;
+  var _pushActivo = _esNativo ? !!window.AVIGO_PUSH_TOKEN : (_permiso === 'granted' && _suscrito);
+
+  sc += '<div id="push-banner-container">';
+  if (_pushActivo) {
     sc += '<div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:12px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px">'
-      + '<span style="font-size:18px">🔔</span>'
+      + '<span style="font-size:18px">&#128276;</span>'
       + '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:#166534">Notificaciones activas</div>'
       + '<div style="font-size:11px;color:#16A34A">Recibiras alertas en tu telefono</div></div>'
       + '<button onclick="probarNotificacion()" style="font-size:11px;font-weight:700;color:#16A34A;background:#fff;border:1.5px solid #BBF7D0;border-radius:8px;padding:5px 10px;cursor:pointer;font-family:inherit">Probar</button>'
       + '</div>';
-  } else if (_permiso === 'denied') {
+  } else if (!_esNativo && _permiso === 'denied') {
     sc += '<div style="background:#FEF2F2;border:1.5px solid #FECACA;border-radius:12px;padding:10px 14px;margin-bottom:12px">'
-      + '<div style="font-size:12px;font-weight:700;color:#DC2626;margin-bottom:2px">🔕 Notificaciones bloqueadas</div>'
-      + '<div style="font-size:11px;color:#EF4444">Ve a Configuracion del navegador y permite las notificaciones para AviGo</div>'
+      + '<div style="font-size:12px;font-weight:700;color:#DC2626;margin-bottom:2px">Notificaciones bloqueadas</div>'
+      + '<div style="font-size:11px;color:#EF4444">Ve a Ajustes y permite las notificaciones para AviGo</div>'
       + '</div>';
   } else {
     sc += '<div style="background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:12px;padding:12px 14px;margin-bottom:12px">'
-      + '<div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:4px">🔔 Activa las notificaciones</div>'
+      + '<div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:4px">Activa las notificaciones</div>'
       + '<div style="font-size:11px;color:#78350F;margin-bottom:10px;line-height:1.5">Recibe recordatorios en tu telefono aunque la app este cerrada.</div>'
       + '<button onclick="activarNotificacionesPush()" style="width:100%;padding:10px;background:#F59E0B;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Activar notificaciones</button>'
       + '</div>';
   }
+  sc += '</div>';
 
   sc += '<p style="font-size:11px;color:#9CA3AF;margin-bottom:12px;line-height:1.5">Activa cada recordatorio, define la frecuencia y los horarios de tu jornada.</p>';
   recsDef.forEach(function(rec){
@@ -8122,12 +8159,46 @@ function exportarPDF(dias){
       var pdfTitle = document.createElement('span');
       pdfTitle.style.cssText = 'color:#fff;font-weight:800;font-size:15px';
       pdfTitle.textContent = 'Reporte AviGo';
+      // Botones de la barra — Compartir y Cerrar
+      var pdfBtns = document.createElement('div');
+      pdfBtns.style.cssText = 'display:flex;gap:8px;align-items:center';
+
+      // Botón compartir/descargar
+      var pdfShare = document.createElement('button');
+      pdfShare.textContent = 'Compartir';
+      pdfShare.style.cssText = 'background:rgba(255,255,255,.25);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit';
+      pdfShare.onclick = function() {
+        try {
+          // Web Share API — funciona en Android Chrome y APK
+          if (navigator.share) {
+            var blob = new Blob([html], {type:'text/html'});
+            var file = new File([blob], 'reporte-avigo.html', {type:'text/html'});
+            if (navigator.canShare && navigator.canShare({files:[file]})) {
+              navigator.share({ files: [file], title: 'Reporte AviGo', text: 'Reporte de produccion avicola' });
+            } else {
+              navigator.share({ title: 'Reporte AviGo', text: 'Reporte generado en AviGo' });
+            }
+          } else {
+            // Fallback: descargar como archivo
+            var b = new Blob([html], {type:'text/html;charset=utf-8'});
+            var u = URL.createObjectURL(b);
+            var a = document.createElement('a');
+            a.href = u; a.download = 'reporte-avigo.html';
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a); URL.revokeObjectURL(u);
+          }
+        } catch(e) { showToast('Error al compartir: ' + e.message); }
+      };
+
       var pdfBtn = document.createElement('button');
       pdfBtn.textContent = 'Cerrar';
-      pdfBtn.style.cssText = 'background:rgba(255,255,255,.25);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit';
+      pdfBtn.style.cssText = 'background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit';
       pdfBtn.onclick = function() { document.body.removeChild(pdfOv); };
+
+      pdfBtns.appendChild(pdfShare);
+      pdfBtns.appendChild(pdfBtn);
       pdfBar.appendChild(pdfTitle);
-      pdfBar.appendChild(pdfBtn);
+      pdfBar.appendChild(pdfBtns);
       var pdfFrame = document.createElement('iframe');
       pdfFrame.style.cssText = 'flex:1;border:none;width:100%;background:#fff';
       pdfFrame.srcdoc = html;
