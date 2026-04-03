@@ -8158,7 +8158,7 @@ function exportarPDF(dias){
       pdfContent.style.cssText = 'padding:0';
       // Extraer estilos y body del HTML generado
       var tmpDiv = document.createElement('div');
-      tmpDiv.innerHTML = html;
+      tmpDiv.innerHTML = html.replace(/<script[\s\S]*?<\/script>/gi, '');
       var styleEls = tmpDiv.querySelectorAll('style');
       styleEls.forEach(function(s) { pdfContent.appendChild(s.cloneNode(true)); });
       var bodyEl = tmpDiv.querySelector('body');
@@ -8189,7 +8189,7 @@ function exportarPDF(dias){
   } catch(e) {
     showToast('Error al generar reporte: ' + e.message);
   }
-}}
+}
 
 
 function mostrarAyudaOnb(){
