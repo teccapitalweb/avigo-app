@@ -363,7 +363,8 @@ function sincronizarSuscripcion(sub) {
       endpoint:    subJson.endpoint,
       p256dh:      subJson.keys.p256dh,
       auth:        subJson.keys.auth,
-      dispositivo: navigator.userAgent.substring(0, 100)
+      dispositivo: navigator.userAgent.substring(0, 100),
+      sistema:     granja.sistema || 'jaula'
     })
   }).catch(function() {});
 }
@@ -3400,11 +3401,11 @@ function cambiarLote(idx){
   if(!granja.lotes || granja.lotes.length===0){ showToast('Sin lotes disponibles'); return; }
   if(idx<0) idx=0;
   if(idx>=granja.lotes.length) idx=granja.lotes.length-1;
-  // Guardar estado del lote actual antes de cambiar
   guardarEnStorage();
-  // Cambiar al nuevo lote
   _aplicarLote(idx);
   guardarEnStorage();
+  // FIX: sincronizar recordatorios del nuevo sistema al backend
+  setTimeout(function(){ if(typeof sincronizarRecordatorios==='function') sincronizarRecordatorios(); }, 400);
   showToast('✓ Lote "'+granja.nombre+'" activo');
   nav('dash');
 }
@@ -3879,7 +3880,38 @@ function avigoRegistrarEmail() {
 // ─── AVIGO BACKEND — FUNCIONES DE UI ────────────────────────
 // Inicia el flujo de Google Sign-In
 function avigoIniciarGoogle() {
-  // Usar OAuth2 popup directo — funciona en todos los navegadores
+  var esNativo = (typeof window.AVIGO_NATIVE !== 'undefined' && window.AVIGO_NATIVE)
+    || (typeof window.ReactNativeWebView !== 'undefined');
+
+  var nonce = Math.random().toString(36).slice(2);
+
+  // ── APK: delegar al App.js via postMessage ───────────────
+  // App.js escucha { type:'GOOGLE_LOGIN' } y abre expo-web-browser
+  // Cuando termina, inyecta window.AVIGO_GOOGLE_CREDENTIAL = idToken
+  // y dispara window.dispatchEvent(new Event('avigo_google_done'))
+  if (esNativo) {
+    showToast('Abriendo cuenta de Google...');
+    window.ReactNativeWebView.postMessage(JSON.stringify({
+      type:   'GOOGLE_LOGIN',
+      nonce:  nonce,
+      client: GOOGLE_CLIENT_ID
+    }));
+    // Escuchar respuesta del App.js (solo una vez)
+    function _onGoogleDone() {
+      window.removeEventListener('avigo_google_done', _onGoogleDone);
+      var token = window.AVIGO_GOOGLE_CREDENTIAL;
+      window.AVIGO_GOOGLE_CREDENTIAL = null;
+      if (token) {
+        avigoLoginGoogle(token);
+      } else {
+        showToast('Inicio con Google cancelado');
+      }
+    }
+    window.addEventListener('avigo_google_done', _onGoogleDone);
+    return;
+  }
+
+  // ── WEB: popup estándar ──────────────────────────────────
   var w = 500, h = 600;
   var left = Math.round((screen.width - w) / 2);
   var top  = Math.round((screen.height - h) / 2);
@@ -3889,7 +3921,7 @@ function avigoIniciarGoogle() {
     + '&redirect_uri=' + redirectUri
     + '&response_type=id_token'
     + '&scope=openid%20email%20profile'
-    + '&nonce=' + Math.random().toString(36).slice(2)
+    + '&nonce=' + nonce
     + '&prompt=select_account';
 
   var popup = window.open(url, 'google_login',
@@ -4530,6 +4562,77 @@ function generarMensajeInteligente(){
       tag:    'recordatorio-manana',
       p:      4,
     });
+  }
+
+  // ── 13. MENSAJES ESPECÍFICOS POR SISTEMA ─────────────────
+  var sis = granja.sistema || 'jaula';
+
+  if(sis === 'piso'){
+    // Revisar cama cada semana (lunes)
+    var diaSemana = new Date().getDay(); // 0=dom, 1=lun
+    if(diaSemana === 1){
+      msgs.push({
+        titulo: '🌾 Lunes — Revisa el estado de la cama',
+        body:   'Inicio de semana en '+granja.nombre+'. Verifica humedad, voltea y agrega material si es necesario. Cama húmeda = amoniaco = baja postura.',
+        tag:    'revision-cama-semanal',
+        p:      6,
+      });
+    }
+    // Temperatura alta en piso = riesgo de humedad en cama
+    var tempP = granja.tempHoy || 22;
+    if(tempP >= 28){
+      msgs.push({
+        titulo: '💧 Calor + piso con cama: revisa humedad',
+        body:   'Con '+tempP+'°C los bebederos gotean más. En '+granja.nombre+' revisa que la cama bajo bebederos no esté empapada — genera coccidiosis.',
+        tag:    'cama-humedad-calor',
+        p:      7,
+      });
+    }
+    // Recordatorio nidales si es lunes o jueves
+    if(diaSemana === 1 || diaSemana === 4){
+      msgs.push({
+        titulo: '🥚 Revisa y limpia los nidales',
+        body:   'Nidales sucios en '+granja.nombre+' provocan huevo sucio y rotura. Limpia con viruta seca y retira huevos pisados.',
+        tag:    'limpieza-nidales',
+        p:      5,
+      });
+    }
+  }
+
+  if(sis === 'pastoreo'){
+    // Rotación de área cada 7 días
+    var semVida = granja.semVida || 0;
+    if(semVida > 0 && semVida % 1 === 0){ // cada semana
+      var diaEnSem = new Date().getDay();
+      if(diaEnSem === 2){ // martes — recordatorio rotación
+        msgs.push({
+          titulo: '🌿 ¿Ya rotaste el área de pastoreo?',
+          body:   'En '+granja.nombre+' las aves deben rotar cada 7 días para recuperar el pasto y reducir carga parasitaria. Revisa la zona de acceso esta semana.',
+          tag:    'rotacion-pastoreo',
+          p:      6,
+        });
+      }
+    }
+    // Temperatura alta en pastoreo = buscar sombra
+    var tempPas = granja.tempHoy || 22;
+    if(tempPas >= 30){
+      msgs.push({
+        titulo: '🌳 Calor fuerte — asegura sombra en pastoreo',
+        body:   'Con '+tempPas+'°C en '+granja.nombre+' las aves necesitan sombra suficiente y agua fresca. Revisa bebederos en el área de libre acceso.',
+        tag:    'sombra-pastoreo',
+        p:      8,
+      });
+    }
+    // Recordatorio bioseguridad en pastoreo (jueves)
+    var diaSemPas = new Date().getDay();
+    if(diaSemPas === 4){
+      msgs.push({
+        titulo: '🦠 Revisa bioseguridad en área de pastoreo',
+        body:   'Las aves en '+granja.nombre+' tienen contacto con suelo. Revisa trampas para roedores, controla acceso de aves silvestres y verifica pediluvio.',
+        tag:    'bioseguridad-pastoreo',
+        p:      5,
+      });
+    }
   }
 
   // Ordenar por prioridad y devolver el más urgente
