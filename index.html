@@ -451,23 +451,21 @@ function avigoLoginGoogle(credential) {
       showToast('Bienvenido, ' + _nombre + '!');
 
       // Si es usuario nuevo — siempre al onboarding a registrar su granja
-      if (data.usuario && data.usuario.esNuevo) {
+      var _tieneGranjaLocal = granja.lotes && granja.lotes.length > 0 &&
+        granja.lotes[0] && granja.lotes[0].granjaData &&
+        granja.lotes[0].granjaData.numAves > 0;
+
+      // Usuario nuevo O sin granja → onboarding
+      if (data.usuario.esNuevo || !_tieneGranjaLocal) {
         setTimeout(inicializarPush, 2000);
         nav('ob1');
         return;
       }
 
-      // Usuario existente — verificar si tiene granja configurada
-      var _tieneGranjaLocal = granja.lotes && granja.lotes.length > 0 &&
-        granja.lotes[0] && granja.lotes[0].granjaData &&
-        granja.lotes[0].granjaData.numAves > 0;
-      if (_tieneGranjaLocal) {
-        setTimeout(function(){ avigoSyncGranja(granja); }, 2000);
-        setTimeout(inicializarPush, 2000);
-        nav('dash');
-      } else {
-        avigoCargarDatos();
-      }
+      // Usuario existente con granja → dash directo
+      setTimeout(function(){ avigoSyncGranja(granja); }, 2000);
+      setTimeout(inicializarPush, 2000);
+      nav('dash');
     } else {
       showToast('Error al iniciar sesi\u00f3n con Google');
     }
@@ -4160,9 +4158,10 @@ function resetApp(){
   return; // importante: no continuar
 }
 function _ejecutarReset(){
-  // Limpiar todo
-  localStorage.clear();
-  // Reiniciar variables en memoria
+  // Limpiar SOLO datos de granja — conservar sesión activa
+  // El usuario no tiene que volver a hacer login
+  try { localStorage.removeItem('avigo_v1'); } catch(e) {}
+  // Limpiar variables de granja en memoria
   historial = [];
   alertas   = [];
   granja = {
@@ -4174,8 +4173,13 @@ function _ejecutarReset(){
     notifHora:'07:00', vacunas:[], recordatorios:{}, lotes:[],
     loteActivo:0, clientesJaula:[], traspatio:{},
   };
-  _avigoSession = null;
-  try { localStorage.removeItem('avigo_session'); } catch(e) {}
+  // Notificar al App.js nativo para limpiar avigo_v1 del AsyncStorage
+  try {
+    if(window.ReactNativeWebView){
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'CLEAR_GRANJA' }));
+    }
+  } catch(e) {}
+  // Ir al onboarding con sesión activa
   nav('ob1');
 }
 
@@ -6471,18 +6475,37 @@ function guardarObsBio(val){
 
 // ─── INICIO DE APP — espera DOM listo ──────────────────────────
 window.addEventListener('DOMContentLoaded', function(){
-  // Limpiar sesión al arrancar — el usuario siempre debe hacer login
-  // Los datos de la granja (avigo_v1) se conservan
-  try { localStorage.removeItem('avigo_session'); } catch(e) {}
-  _avigoSession = null;
-
   var yaHayDatos = cargarDeStorage();
   if(!granja.lotes)   granja.lotes  = [];
   if(!granja.vacunas) granja.vacunas = JSON.parse(JSON.stringify(VAC_SCHEDULE));
 
-  // Siempre al splash/login al abrir la app
+  var _tieneGranja = yaHayDatos && granja.lotes && granja.lotes.length > 0 &&
+    granja.lotes[0] && granja.lotes[0].granjaData &&
+    granja.lotes[0].granjaData.numAves > 0;
+
   var _yaVioIntro = false;
   try{ _yaVioIntro = localStorage.getItem('avigo_intro_seen') === '1'; }catch(e){}
+
+  // CASO 1: Tiene sesión activa Y tiene granja → dash directo
+  // (usuario que cerró la app y volvió, o que cerró sesión y volvió a entrar)
+  if (avigoTieneSession() && _tieneGranja) {
+    var hoyStr = new Date().toISOString().split('T')[0];
+    granja.registradoHoy = (historial.length>0 && historial[0] && historial[0].fecha===hoyStr);
+    if(granja.notifActiva && typeof programarNotificacion==='function') programarNotificacion();
+    setTimeout(function(){ avigoSyncGranja(granja); }, 3000);
+    setTimeout(inicializarPush, 2000);
+    nav('dash');
+    return;
+  }
+
+  // CASO 2: Tiene sesión pero sin granja → onboarding
+  // (después de resetApp — sesión activa pero granja borrada)
+  if (avigoTieneSession() && !_tieneGranja) {
+    nav('ob1');
+    return;
+  }
+
+  // CASO 3: Sin sesión → splash o intro (login)
   nav(_yaVioIntro ? 'splash' : 'intro');
 });
 
