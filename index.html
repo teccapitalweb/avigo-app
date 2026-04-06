@@ -3108,10 +3108,13 @@ function renderPeriodo(dias){
     html+='</div>';
     html+='</div>';
 
-    // ── BOTÓN EXPORTAR PDF
-    html+='<button onclick="exportarPDF('+dias+')" style="width:100%;padding:13px;background:#fff;border:1.5px solid #E5E7EB;border-radius:14px;color:#374151;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px">';
-    html+='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>';
-    html+='Exportar reporte PDF ('+dias+' días)</button>';
+    // ── PRÓXIMAMENTE PDF
+    html+='<div style="width:100%;padding:14px 16px;background:#FFFBEB;border:1.5px dashed #FDE68A;border-radius:14px;display:flex;align-items:center;gap:12px;margin-bottom:12px">';
+    html+='<div style="font-size:22px;flex-shrink:0">📄</div>';
+    html+='<div>';
+    html+='<div style="font-size:13px;font-weight:800;color:#92400E">Reporte PDF</div>';
+    html+='<div style="font-size:11px;font-weight:500;color:#B45309;margin-top:2px;line-height:1.4">Estamos trabajando en esta función. Muy pronto podrás descargar y compartir tu reporte completo en PDF. 🚀</div>';
+    html+='</div></div>';
 
     // ── LISTA DE REGISTROS
     html+='<div style="font-size:11px;font-weight:700;color:#9CA3AF;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Registros diarios</div>';
