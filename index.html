@@ -7893,17 +7893,40 @@ function formatInline(texto){
 var _climaCache = { temp: null, fecha: null, lat: null, lon: null };
 
 function obtenerTemperaturaAuto(callback){
-  // Si ya tenemos dato de hoy, usar cache
-  var hoy = new Date().toISOString().split('T')[0];
-  if(_climaCache.temp !== null && _climaCache.fecha === hoy){
+  // Cache válido por 30 minutos — no por día completo
+  var ahora = Date.now();
+  var cacheValido = _climaCache.temp !== null && 
+                    _climaCache.ts && 
+                    (ahora - _climaCache.ts) < 30 * 60 * 1000;
+  if(cacheValido){
     if(callback) callback(_climaCache.temp, _climaCache.lat, _climaCache.lon);
     return;
   }
-  // NUNCA pedir permiso de GPS aquí — solo usar coords ya guardadas o default.
-  // El GPS solo se solicita cuando el usuario pulsa "Usar GPS" explícitamente.
-  var lat = (granja.climaLat) || _climaCache.lat || 18.4613;
-  var lon = (granja.climaLon) || _climaCache.lon || -97.3939;
-  fetchTemperatura(lat, lon, callback);
+
+  // Intentar obtener GPS actual primero (silencioso, sin pedir permiso extra)
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      function(pos){
+        var lat = pos.coords.latitude;
+        var lon = pos.coords.longitude;
+        // Actualizar coords guardadas
+        granja.climaLat = lat;
+        granja.climaLon = lon;
+        fetchTemperatura(lat, lon, callback);
+      },
+      function(){
+        // GPS falló — usar coords guardadas o default Tehuacán
+        var lat = granja.climaLat || _climaCache.lat || 18.4613;
+        var lon = granja.climaLon || _climaCache.lon || -97.3939;
+        fetchTemperatura(lat, lon, callback);
+      },
+      { timeout: 5000, enableHighAccuracy: false, maximumAge: 300000 }
+    );
+  } else {
+    var lat = granja.climaLat || _climaCache.lat || 18.4613;
+    var lon = granja.climaLon || _climaCache.lon || -97.3939;
+    fetchTemperatura(lat, lon, callback);
+  }
 }
 
 function fetchTemperatura(lat, lon, callback){
@@ -7917,17 +7940,23 @@ function fetchTemperatura(lat, lon, callback){
       if(data && data.current && data.current.temperature_2m !== undefined){
         var temp = Math.round(data.current.temperature_2m * 10) / 10;
         var hoy  = new Date().toISOString().split('T')[0];
-        _climaCache = { temp: temp, fecha: hoy, lat: lat, lon: lon };
+        // Guardar con timestamp para cache de 30 min
+        _climaCache = { temp: temp, fecha: hoy, lat: lat, lon: lon, ts: Date.now() };
         granja.tempHoy = temp;
         granja.climaLat = lat;
         granja.climaLon = lon;
         guardarEnStorage();
         if(callback) callback(temp, lat, lon);
-        // Actualizar el indicador en el dashboard si está visible
         actualizarClimaEnDash(temp, data.current.weather_code);
       }
     })
-    .catch(function(){ /* sin internet, usar tempHoy guardado */ });
+    .catch(function(){
+      // Sin internet — usar tempHoy guardado y mostrarlo
+      if(granja.tempHoy){
+        if(callback) callback(granja.tempHoy, lat, lon);
+        actualizarClimaEnDash(granja.tempHoy, undefined);
+      }
+    });
 }
 
 function actualizarClimaEnDash(temp, wcode){
