@@ -459,18 +459,20 @@ function avigoLoginGoogle(credential) {
 // Cerrar sesión
 function avigoLogout() {
   _avigoSession = null;
+  // Limpiar sesión del localStorage
   try { localStorage.removeItem('avigo_session'); } catch(e) {}
-  if (typeof google !== 'undefined' && google.accounts) {
-    google.accounts.id.disableAutoSelect();
-  }
   // Limpiar sesión del AsyncStorage nativo (APK)
   try {
     if(typeof window.ReactNativeWebView !== 'undefined'){
       window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'CLEAR_SESSION' }));
     }
   } catch(e) {}
+  if (typeof google !== 'undefined' && google.accounts) {
+    google.accounts.id.disableAutoSelect();
+  }
   showToast('Sesion cerrada');
-  nav('splash');
+  // Ir al splash en todos los sistemas
+  try { nav('splash'); } catch(e) { window.location.reload(); }
 }
 
 // Verificar si hay sesión activa
@@ -4026,8 +4028,23 @@ function avigoIniciarGoogle() {
 
 // Botón de logout en perfil
 function avigoBotonLogout() {
-  if (!avigoTieneSession()) { showToast('No hay sesion activa'); return; }
-  var nombre = _avigoSession && _avigoSession.usuario ? (_avigoSession.usuario.nombre || _avigoSession.usuario.email) : 'tu cuenta';
+  // Permitir cerrar sesión aunque _avigoSession no esté cargado en memoria
+  // (puede pasar al reiniciar la app antes de que se restaure el localStorage)
+  var nombre = 'tu cuenta';
+  if (_avigoSession && _avigoSession.usuario) {
+    nombre = _avigoSession.usuario.nombre || _avigoSession.usuario.email || 'tu cuenta';
+  } else {
+    // Intentar leer del localStorage directamente
+    try {
+      var raw = localStorage.getItem('avigo_session');
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && parsed.usuario) {
+          nombre = parsed.usuario.nombre || parsed.usuario.email || 'tu cuenta';
+        }
+      }
+    } catch(e) {}
+  }
   var ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px';
   var box = document.createElement('div');
@@ -6470,7 +6487,7 @@ window.addEventListener('DOMContentLoaded', function(){
 })();
 
 // Mapa de relaciones de pantallas para dirección de animación
-var NAV_ORDER = ['intro','splash','login','registro','forgot','reset','ob1','ob2','ob3','ob4','dash','daily','historial','ia','tendencia','renta','bio','vac','perfil','nuevo_lote'];
+var NAV_ORDER = ['intro','splash','login','registro','forgot','reset','ob1','ob2','ob3','ob4','dash','daily','historial','ia','tendencia','renta','bio','vac','perfil','nuevo_lote','parvada','alimentacion_natural','salud_natural','economia_traspatio','ventas_traspatio','clientes_traspatio','clientes_jaula','calendario'];
 var _lastScreen = 'dash';
 
 // Override nav con animaciones
