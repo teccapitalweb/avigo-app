@@ -522,8 +522,52 @@ function avigoSyncRegistro(granjaId, registro) {
       console.log('\u2705 Registro sincronizado con backend');
     }
   })
-  .catch(function() { /* sin internet, queda en localStorage */ });
+  .catch(function() {
+    // Sin internet — guardar en cola para sync posterior
+    try {
+      var cola = JSON.parse(localStorage.getItem('avigo_sync_cola') || '[]');
+      cola.push({ tipo: 'registro', granjaId: granjaId, data: registro, ts: Date.now() });
+      // Guardar max 50 pendientes
+      if (cola.length > 50) cola = cola.slice(-50);
+      localStorage.setItem('avigo_sync_cola', JSON.stringify(cola));
+    } catch(e) {}
+  });
 }
+
+// Procesar cola de sync offline cuando vuelve la conexión
+function avigoFlushSyncCola() {
+  if (!avigoTieneSession()) return;
+  try {
+    var cola = JSON.parse(localStorage.getItem('avigo_sync_cola') || '[]');
+    if (!cola.length) return;
+    var pendientes = cola.slice();
+    localStorage.removeItem('avigo_sync_cola');
+    pendientes.forEach(function(item) {
+      if (item.tipo === 'registro' && item.granjaId) {
+        fetch(AVIGO_API + '/registros/' + item.granjaId, {
+          method: 'POST',
+          headers: avigoHeaders(),
+          body: JSON.stringify(item.data)
+        }).catch(function() {
+          // Volver a encolar si falla
+          try {
+            var c2 = JSON.parse(localStorage.getItem('avigo_sync_cola') || '[]');
+            c2.push(item);
+            localStorage.setItem('avigo_sync_cola', JSON.stringify(c2));
+          } catch(e) {}
+        });
+      }
+    });
+  } catch(e) {}
+}
+
+// Escuchar cuando vuelve la conexión
+window.addEventListener('online', function() {
+  setTimeout(avigoFlushSyncCola, 1500);
+  setTimeout(function() {
+    if (avigoTieneSession()) avigoSyncGranja(granja);
+  }, 3000);
+});
 
 // Sincronizar granja completa con el backend (primer login)
 function avigoSyncGranja(granjaData) {
@@ -548,26 +592,43 @@ function avigoSyncGranja(granjaData) {
 // Cargar datos del backend al iniciar sesión
 function avigoCargarDatos() {
   if (!avigoTieneSession()) { nav('splash'); return; }
+
+  // Si hay datos locales, ir al dash inmediatamente sin esperar red
+  var yaHayDatosLocal = granja.lotes && granja.lotes.length > 0 &&
+    granja.lotes[0] && granja.lotes[0].granjaData &&
+    granja.lotes[0].granjaData.numAves > 0;
+
+  if (yaHayDatosLocal) {
+    nav('dash');
+    // Sync en background sin bloquear
+    setTimeout(function() {
+      fetch(AVIGO_API + '/sync/status', { headers: avigoHeaders() })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.granjas === 0) avigoSyncGranja(granja);
+        // Procesar cola pendiente
+        avigoFlushSyncCola();
+      })
+      .catch(function() { /* sin internet, datos locales ya cargados */ });
+    }, 2000);
+    return;
+  }
+
+  // Sin datos locales — intentar cargar del backend
   fetch(AVIGO_API + '/sync/status', { headers: avigoHeaders() })
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.granjas > 0) {
-      // Ya tiene datos en el backend — ir al dashboard
       nav('dash');
     } else {
-      // Nuevo en el backend — sincronizar localStorage si tiene datos
-      var yaHayDatos = granja.lotes && granja.lotes.length > 0 &&
-        granja.lotes[0] && granja.lotes[0].granjaData &&
-        granja.lotes[0].granjaData.numAves > 0;
-      if (yaHayDatos) {
-        avigoSyncGranja(granja);
-        nav('dash');
-      } else {
-        nav('ob1');
-      }
+      nav('ob1');
     }
   })
-  .catch(function() { nav('dash'); });
+  .catch(function() {
+    // Sin internet y sin datos locales — ir al onboarding
+    showToast('Sin conexión — modo offline');
+    nav('ob1');
+  });
 }
 
 // ── GOOGLE OAUTH2 POPUP ─────────────────────────────────────
@@ -587,6 +648,12 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   // Renovar token en background si está próximo a vencer
   setTimeout(avigoRenovarTokenSiNecesario, 3000);
+  // Procesar cola de sync pendiente si hay conexión
+  setTimeout(function() {
+    if (navigator.onLine && typeof avigoFlushSyncCola === 'function') {
+      avigoFlushSyncCola();
+    }
+  }, 4000);
 });
 </script>
 </head>
@@ -4758,11 +4825,13 @@ screens.alertas_screen = function(){ return screens.dash(); };
 
   // Service Worker para funcionar offline
   if(!('serviceWorker' in navigator)) return;
-  var CACHE = 'avigo-v3';
+  var CACHE = 'avigo-v4';
   var swCode = [
-    "var CACHE='avigo-v3';",
+    "var CACHE='avigo-v4';",
+    "var CORE=['https://teccapitalweb.github.io/avigo-app/','https://teccapitalweb.github.io/avigo-app/index.html'];",
     "self.addEventListener('install',function(e){",
     "  self.skipWaiting();",
+    "  e.waitUntil(caches.open(CACHE).then(function(c){ return c.addAll(CORE); }).catch(function(){}));",
     "});",
     "self.addEventListener('activate',function(e){",
     "  e.waitUntil(caches.keys().then(function(ks){",
@@ -4772,12 +4841,15 @@ screens.alertas_screen = function(){ return screens.dash(); };
     "});",
     "self.addEventListener('fetch',function(e){",
     "  if(e.request.method!=='GET') return;",
+    "  var url=e.request.url;",
+    "  if(url.includes('/push/')|| url.includes('/auth/')|| url.includes('/registros/')|| url.includes('/sync')) return;",
     "  e.respondWith(caches.open(CACHE).then(function(cache){",
     "    return cache.match(e.request).then(function(cached){",
-    "      var fresh = fetch(e.request).then(function(r){",
-    "        cache.put(e.request,r.clone()); return r;",
+    "      var fresh=fetch(e.request).then(function(r){",
+    "        if(r&&r.status===200) cache.put(e.request,r.clone());",
+    "        return r;",
     "      }).catch(function(){ return cached; });",
-    "      return cached || fresh;",
+    "      return cached||fresh;",
     "    });",
     "  }));",
     "});"
