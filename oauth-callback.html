@@ -24,25 +24,32 @@ body { font-family: -apple-system, sans-serif; background: #F0FDF4; min-height: 
 </div>
 <script>
 (function() {
-  function getParam(str, key) {
+  function getParam(source, key) {
     var result = null;
-    (str || '').replace(/^[#?]/, '').split('&').forEach(function(p) {
+    (source || '').replace(/^[#?]/, '').split('&').forEach(function(p) {
       var eq = p.indexOf('=');
-      if (eq > 0) {
-        var k = decodeURIComponent(p.slice(0, eq));
-        var v = decodeURIComponent(p.slice(eq + 1));
-        if (k === key) result = v;
+      if (eq > 0 && decodeURIComponent(p.slice(0, eq)) === key) {
+        result = decodeURIComponent(p.slice(eq + 1));
       }
     });
     return result;
   }
 
-  var hash    = window.location.hash;
-  var search  = window.location.search;
+  var h = window.location.hash;
+  var s = window.location.search;
 
-  var idToken     = getParam(hash, 'id_token')     || getParam(search, 'id_token');
-  var accessToken = getParam(hash, 'access_token') || getParam(search, 'access_token');
-  var error       = getParam(hash, 'error')        || getParam(search, 'error');
+  var idToken     = getParam(h, 'id_token')     || getParam(s, 'id_token');
+  var accessToken = getParam(h, 'access_token') || getParam(s, 'access_token');
+  var avigoToken  = getParam(s, 'avigo_token');
+  var error       = getParam(h, 'error')        || getParam(s, 'error');
+
+  // Si ya venimos de la redirección interna — solo cerrar
+  if (avigoToken) {
+    document.getElementById('msg').textContent = 'Cerrando...';
+    document.getElementById('spinner').style.display = 'none';
+    setTimeout(function() { window.close(); }, 300);
+    return;
+  }
 
   if (error) {
     document.getElementById('msg').textContent = 'Error: ' + error;
@@ -56,28 +63,25 @@ body { font-family: -apple-system, sans-serif; background: #F0FDF4; min-height: 
     return;
   }
 
+  var token = idToken || accessToken;
   document.getElementById('msg').textContent = '¡Listo! Volviendo a AviGo...';
 
-  var token = idToken || accessToken;
+  // Estrategia 1: ReactNativeWebView directo
+  try {
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'GOOGLE_TOKEN',
+        idToken: idToken,
+        accessToken: accessToken
+      }));
+      return;
+    }
+  } catch(e) {}
 
-  // Estrategia 1: Redirigir a una URL con el token en query string
-  // openAuthSessionAsync detecta esta URL y la devuelve en result.url
-  // El App.js la lee y extrae el token
-  var returnUrl = 'https://teccapitalweb.github.io/avigo-app/oauth-callback.html'
-    + '?avigo_token=' + encodeURIComponent(token)
-    + '&token_type=' + (idToken ? 'id_token' : 'access_token');
-
-  // Si ya estamos en la URL con avigo_token — no redirigir de nuevo
-  var yaRedirigido = getParam(search, 'avigo_token');
-  if (yaRedirigido) {
-    // El App.js ya leyó esta URL — solo cerrar
-    document.getElementById('msg').textContent = 'Cerrando...';
-    setTimeout(function() { window.close(); }, 500);
-    return;
-  }
-
-  // Redirigir con el token en query string (no en fragment)
-  // Así openAuthSessionAsync detecta la URL completa
+  // Estrategia 2: Redirigir con token en query string
+  // openAuthSessionAsync detecta esta URL y devuelve result.url con el token
+  var returnUrl = window.location.href.split('?')[0].split('#')[0]
+    + '?avigo_token=' + encodeURIComponent(token);
   window.location.replace(returnUrl);
 })();
 </script>
