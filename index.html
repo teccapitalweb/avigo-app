@@ -449,6 +449,15 @@ function avigoLoginGoogle(credential) {
       try { localStorage.setItem('avigo_session', JSON.stringify(_avigoSession)); } catch(e) {}
       var _nombre = data.usuario.nombre || data.usuario.email || 'usuario';
       showToast('Bienvenido, ' + _nombre + '!');
+
+      // Si es usuario nuevo — siempre al onboarding a registrar su granja
+      if (data.usuario && data.usuario.esNuevo) {
+        setTimeout(inicializarPush, 2000);
+        nav('ob1');
+        return;
+      }
+
+      // Usuario existente — verificar si tiene granja configurada
       var _tieneGranjaLocal = granja.lotes && granja.lotes.length > 0 &&
         granja.lotes[0] && granja.lotes[0].granjaData &&
         granja.lotes[0].granjaData.numAves > 0;
@@ -614,41 +623,56 @@ function avigoSyncGranja(granjaData) {
 function avigoCargarDatos() {
   if (!avigoTieneSession()) { nav('splash'); return; }
 
-  // Si hay datos locales, ir al dash inmediatamente sin esperar red
+  // Si hay datos locales con granja configurada, ir al dash inmediatamente
   var yaHayDatosLocal = granja.lotes && granja.lotes.length > 0 &&
     granja.lotes[0] && granja.lotes[0].granjaData &&
     granja.lotes[0].granjaData.numAves > 0;
 
   if (yaHayDatosLocal) {
     nav('dash');
-    // Sync en background sin bloquear
+    // Sync en background
     setTimeout(function() {
       fetch(AVIGO_API + '/sync/status', { headers: avigoHeaders() })
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (data.granjas === 0) avigoSyncGranja(granja);
-        // Procesar cola pendiente
         avigoFlushSyncCola();
       })
-      .catch(function() { /* sin internet, datos locales ya cargados */ });
+      .catch(function() {});
     }, 2000);
     return;
   }
 
-  // Sin datos locales — intentar cargar del backend
+  // Sin datos locales — cargar del backend
   fetch(AVIGO_API + '/sync/status', { headers: avigoHeaders() })
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.granjas > 0) {
-      nav('dash');
+      // Tiene granja en backend — cargar datos y llevar al dash
+      return fetch(AVIGO_API + '/sync', { headers: avigoHeaders() })
+        .then(function(r) { return r.json(); })
+        .then(function(syncData) {
+          if (syncData && syncData.lotes && syncData.lotes.length > 0) {
+            // Restaurar datos del backend al estado local
+            granja.lotes = syncData.lotes;
+            granja.loteActivo = syncData.loteActivo || 0;
+            if (syncData.notifActiva !== undefined) granja.notifActiva = syncData.notifActiva;
+            if (syncData.recordatorios) granja.recordatorios = syncData.recordatorios;
+            if (typeof _aplicarLote === 'function') _aplicarLote(granja.loteActivo);
+            if (typeof guardarEnStorage === 'function') guardarEnStorage();
+          }
+          nav('dash');
+        })
+        .catch(function() { nav('dash'); });
     } else {
+      // Usuario sin granja — al onboarding
       nav('ob1');
     }
   })
   .catch(function() {
-    // Sin internet y sin datos locales — ir al onboarding
-    showToast('Sin conexión — modo offline');
-    nav('ob1');
+    // Sin internet y sin datos locales
+    showToast('Sin conexión — activa internet para cargar tus datos');
+    nav('splash');
   });
 }
 
@@ -3911,8 +3935,10 @@ function avigoLoginEmail() {
         granja.lotes[0] && granja.lotes[0].granjaData && granja.lotes[0].granjaData.numAves > 0;
       if (_tieneGranjaLocal) {
         setTimeout(function(){ avigoSyncGranja(granja); }, 2000);
+        setTimeout(inicializarPush, 2000);
         nav('dash');
       } else {
+        // Sin granja local — verificar backend
         avigoCargarDatos();
       }
     } else {
@@ -6452,28 +6478,9 @@ window.addEventListener('DOMContentLoaded', function(){
     granja.lotes[0] && granja.lotes[0].granjaData &&
     granja.lotes[0].granjaData.numAves > 0;
 
-  // ── SESION PERSISTENTE ────────────────────────────────────
-  // Si hay sesion activa guardada, entrar directo sin pasar por login
-  if (avigoTieneSession()) {
-    if (_tieneGranja) {
-      // Tiene cuenta Y tiene granja → dash directo
-      var hoyStr = new Date().toISOString().split('T')[0];
-      granja.registradoHoy = (historial.length>0 && historial[0] && historial[0].fecha===hoyStr);
-      if(granja.notifActiva && typeof programarNotificacion==='function') programarNotificacion();
-      setTimeout(function(){ avigoSyncGranja(granja); }, 3000);
-      setTimeout(inicializarPush, 2000);
-      nav('dash');
-    } else {
-      // Tiene cuenta pero sin granja → onboarding
-      var _yaVioIntro = false;
-      try{ _yaVioIntro = localStorage.getItem('avigo_intro_seen') === '1'; }catch(e){}
-      nav(_yaVioIntro ? 'ob1' : 'intro');
-    }
-    return;
-  }
-
-  // ── SIN SESION → solo puede ver intro/splash/login ───────
-  // Sin cuenta activa, siempre al splash (nunca al dashboard)
+  // ── SIEMPRE AL LOGIN AL REINICIAR ───────────────────────
+  // El usuario siempre debe hacer login al abrir la app de nuevo
+  // Después del login se verifica si tiene granja o va al onboarding
   var _yaVioIntro = false;
   try{ _yaVioIntro = localStorage.getItem('avigo_intro_seen') === '1'; }catch(e){}
   nav(_yaVioIntro ? 'splash' : 'intro');
