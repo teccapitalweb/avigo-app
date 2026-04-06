@@ -2833,6 +2833,10 @@ function guardarEnStorage(){
     localStorage.setItem(LS_KEY, JSON.stringify({
       v:           2,
       loteActivo:  granja.loteActivo || 0,
+      // Guardar notif y recordatorios a nivel global para que persistan al cambiar lote
+      notifActiva:  granja.notifActiva || false,
+      notifHora:    granja.notifHora   || '07:00',
+      recordatorios: granja.recordatorios || {},
       lotes:       granja.lotes.map(function(l){
         return {
           id:           l.id || Date.now(),
@@ -2884,6 +2888,12 @@ function cargarDeStorage(){
       // Formato nuevo — lotes independientes
       granja.lotes      = data.lotes || [];
       granja.loteActivo = data.loteActivo || 0;
+      // Restaurar notificaciones y recordatorios globales (persisten entre lotes)
+      if(data.notifActiva !== undefined) granja.notifActiva = data.notifActiva;
+      if(data.notifHora)    granja.notifHora    = data.notifHora;
+      if(data.recordatorios && Object.keys(data.recordatorios).length > 0){
+        granja.recordatorios = data.recordatorios;
+      }
       _aplicarLote(granja.loteActivo);
       _limpiarClientesCorruptos();
     } else {
@@ -2972,7 +2982,10 @@ function _aplicarLote(idx){
   historial          = (l.historial  || []).slice();
   alertas            = (l.alertas    || []).slice();
   granja.vacunas     = l.vacunas     || JSON.parse(JSON.stringify(VAC_SCHEDULE));
-  granja.recordatorios = l.recordatorios || {};
+  // Recordatorios: usar los globales si existen, si no los del lote
+  if(!granja.recordatorios || Object.keys(granja.recordatorios).length === 0){
+    granja.recordatorios = l.recordatorios || {};
+  }
   // Normalizar clientesJaula — inline para evitar dependencias de orden
   function _fixCliente(c){
     if(!c||!c.nombre||!c.nombre.trim()) return null;
@@ -6329,8 +6342,9 @@ function guardarObsBio(val){
         granja.tempHoy       = g.tempHoy       || 22;
         granja.climaLat      = g.climaLat      || null;
         granja.climaLon      = g.climaLon      || null;
-        granja.notifActiva   = g.notifActiva   || false;
-        granja.notifHora     = g.notifHora     || '07:00';
+        // Solo actualizar notifActiva si no hay valor global ya activo
+        if(!granja.notifActiva) granja.notifActiva = g.notifActiva || false;
+        if(!granja.notifHora)   granja.notifHora   = g.notifHora   || '07:00';
         granja.frecuenciaCompra = g.frecCompra || 'semanal';
         currentAlimento      = granja.etapa;
         historial            = (l.historial    || []).slice();
