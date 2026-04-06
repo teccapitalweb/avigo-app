@@ -39,19 +39,29 @@
     font-family: var(--font);
     background: var(--gray-100);
     min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     align-items: flex-start;
     justify-content: center;
     padding: 20px;
+    overflow: hidden;
   }
 
-  @media (max-width: 420px) {
-    body { padding: 0; background: #fff; align-items: flex-start; }
+  /* ─── RESPONSIVE: en móvil real ocupa toda la pantalla ─── */
+  @media (max-width: 600px) {
+    body {
+      padding: 0 !important;
+      background: #fff !important;
+      align-items: flex-start !important;
+    }
     .phone {
       width: 100vw !important;
+      width: 100dvw !important;
       height: 100vh !important;
+      height: 100dvh !important;
       border-radius: 0 !important;
       box-shadow: none !important;
+      max-width: 100% !important;
     }
   }
 
@@ -67,6 +77,8 @@
     flex-direction: column;
     position: relative;
     min-height: 0;
+    /* En APK siempre ocupa toda la pantalla */
+    max-width: 100%;
   }
 
   /* STATUS BAR */
@@ -86,19 +98,20 @@
     overflow: hidden;
     background: var(--white);
     animation: fadeIn .18s ease;
-    min-height: 0; /* crítico para que flex+scroll funcione */
+    min-height: 0;
+    max-width: 100%;
   }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
   /* SCROLL AREA */
-  .scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .scroll { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; max-width: 100%; }
   .scroll::-webkit-scrollbar { display: none; }
 
   /* ─── TYPOGRAPHY ─── */
-  .t-h1 { font-size: 28px; font-weight: 900; color: var(--gray-900); letter-spacing: -1px; line-height: 1.1; }
-  .t-h2 { font-size: 20px; font-weight: 900; color: var(--gray-900); letter-spacing: -.5px; }
+  .t-h1 { font-size: 28px; font-weight: 900; color: var(--gray-900); letter-spacing: -1px; line-height: 1.1; word-break: break-word; }
+  .t-h2 { font-size: 20px; font-weight: 900; color: var(--gray-900); letter-spacing: -.5px; word-break: break-word; }
   .t-h3 { font-size: 16px; font-weight: 800; color: var(--gray-900); }
-  .t-body { font-size: 13px; font-weight: 500; color: var(--gray-500); line-height: 1.5; }
+  .t-body { font-size: 13px; font-weight: 500; color: var(--gray-500); line-height: 1.5; word-break: break-word; }
   .t-label { font-size: 10px; font-weight: 700; color: var(--gray-700); letter-spacing: .05em; text-transform: uppercase; }
   .t-micro { font-size: 9px; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: .05em; }
 
@@ -3264,7 +3277,7 @@ screens.renta = function(){
 
   sc += '<div style="background:#fff;border-radius:18px;box-shadow:0 4px 16px rgba(0,0,0,.06);padding:16px;margin-bottom:12px">';
   sc += '<div style="font-size:12px;font-weight:800;color:#111827;margin-bottom:12px">Precio de venta del huevo</div>';
-  sc += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">';
+  sc += '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px">';
   // Precio por pieza
   sc += '<div><div style="font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;margin-bottom:6px">Por pieza</div>';
   sc += '<div style="position:relative"><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:15px;font-weight:900;color:#9CA3AF">$</span>';
@@ -5568,7 +5581,7 @@ function _screenDailyTraspatio(){
   var LABEL='font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px';
   var INP='width:100%;padding:12px;border:1.5px solid #E5E7EB;border-radius:12px;font-size:20px;font-weight:900;text-align:center;font-family:inherit;outline:none;box-sizing:border-box';
   var SEL='width:100%;padding:10px 12px;border:1.5px solid #E5E7EB;border-radius:12px;font-size:13px;font-weight:700;font-family:inherit;outline:none;background:#fff;box-sizing:border-box';
-  var GRID2='display:grid;grid-template-columns:1fr 1fr;gap:10px';
+  var GRID2='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px';
 
   var sc='<div style="flex:1;display:flex;flex-direction:column;background:#EDFAF3;overflow:hidden">';
   // HEADER
@@ -8785,7 +8798,7 @@ function _dashTraspatio(){
   // PRODUCCIÓN HOY
   sc+='<div style="background:#fff;border-radius:16px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
   sc+='<div style="font-size:11px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Producción de hoy</div>';
-  sc+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">';
+  sc+='<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px">';
   sc+='<div style="text-align:center;background:#F0FDF4;border-radius:14px;padding:16px 8px">';
   sc+='<div style="font-size:38px;font-weight:900;color:#16A34A;line-height:1">'+(regHoy?huevos:'—')+'</div>';
   sc+='<div style="font-size:13px;color:#15803D;margin-top:4px;font-weight:700">Huevos</div>';
@@ -9050,7 +9063,7 @@ screens.parvada = function(){
   var CARD = 'background:#fff;border-radius:18px;box-shadow:0 4px 16px rgba(0,0,0,.06);padding:16px';
   var LABEL = 'font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px';
   var INP = 'width:100%;padding:12px;border:1.5px solid #E5E7EB;border-radius:12px;font-size:20px;font-weight:900;text-align:center;font-family:inherit;outline:none;box-sizing:border-box';
-  var GRID2 = 'display:grid;grid-template-columns:1fr 1fr;gap:10px';
+  var GRID2 = 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px';
 
   var sc = '<div style="flex:1;display:flex;flex-direction:column;background:#EDFAF3;overflow:hidden">';
   sc += '<div style="background:#fff;padding:14px 20px;box-shadow:0 2px 12px rgba(0,0,0,.04);flex-shrink:0;display:flex;align-items:center;gap:12px">';
@@ -9199,7 +9212,7 @@ screens.alimentacion_natural = function(){
   var CARD = 'background:#fff;border-radius:18px;box-shadow:0 4px 16px rgba(0,0,0,.06);padding:16px';
   var LABEL = 'font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px';
   var INP   = 'width:100%;padding:12px;border:1.5px solid #E5E7EB;border-radius:12px;font-size:18px;font-weight:900;text-align:center;font-family:inherit;outline:none;box-sizing:border-box';
-  var GRID2 = 'display:grid;grid-template-columns:1fr 1fr;gap:10px';
+  var GRID2 = 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px';
 
   var sc = '<div style="flex:1;display:flex;flex-direction:column;background:#EDFAF3;overflow:hidden">';
   sc += '<div style="background:#fff;padding:14px 20px;box-shadow:0 2px 12px rgba(0,0,0,.04);flex-shrink:0;display:flex;align-items:center;gap:12px">';
@@ -9342,7 +9355,7 @@ screens.salud_natural = function(){
 
   var CARD = 'background:#fff;border-radius:18px;box-shadow:0 4px 16px rgba(0,0,0,.06);padding:16px';
   var LABEL = 'font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px';
-  var GRID2 = 'display:grid;grid-template-columns:1fr 1fr;gap:10px';
+  var GRID2 = 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px';
 
   var sc = '<div style="flex:1;display:flex;flex-direction:column;background:#EDFAF3;overflow:hidden">';
   sc += '<div style="background:#fff;padding:14px 20px;box-shadow:0 2px 12px rgba(0,0,0,.04);flex-shrink:0;display:flex;align-items:center;gap:12px">';
@@ -9491,7 +9504,7 @@ screens.economia_traspatio = function(){
   var CARD = 'background:#fff;border-radius:18px;box-shadow:0 4px 16px rgba(0,0,0,.06);padding:16px';
   var LABEL = 'font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px';
   var INP   = 'width:100%;padding:12px;border:1.5px solid #E5E7EB;border-radius:12px;font-size:18px;font-weight:900;text-align:center;font-family:inherit;outline:none;box-sizing:border-box';
-  var GRID2 = 'display:grid;grid-template-columns:1fr 1fr;gap:10px';
+  var GRID2 = 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px';
 
   var sc = '<div style="flex:1;display:flex;flex-direction:column;background:#EDFAF3;overflow:hidden">';
   sc += '<div style="background:#fff;padding:14px 20px;box-shadow:0 2px 12px rgba(0,0,0,.04);flex-shrink:0;display:flex;align-items:center;gap:12px">';
