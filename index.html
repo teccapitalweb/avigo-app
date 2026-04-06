@@ -463,6 +463,12 @@ function avigoLogout() {
   if (typeof google !== 'undefined' && google.accounts) {
     google.accounts.id.disableAutoSelect();
   }
+  // Limpiar sesión del AsyncStorage nativo (APK)
+  try {
+    if(typeof window.ReactNativeWebView !== 'undefined'){
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'CLEAR_SESSION' }));
+    }
+  } catch(e) {}
   showToast('Sesion cerrada');
   nav('splash');
 }
@@ -3505,16 +3511,17 @@ function pfRow(label, val, id, type, placeholder){
 screens.perfil = function(){
   setStatus(false);
   try {
-  var raza    = granja.raza    || RAZAS[0];
-  var etapa   = granja.etapa   || ETAPAS_DATA[3];
+  var raza    = granja.raza    || (typeof RAZAS !== 'undefined' ? RAZAS[0] : null);
+  var etapa   = granja.etapa   || (typeof ETAPAS_DATA !== 'undefined' ? ETAPAS_DATA[3] : null);
   var sistNom = granja.sistema==='jaula'?'Jaula en batería':granja.sistema==='piso'?'Piso con cama':'Libre pastoreo';
-  var razaNom = raza ? raza.n : '—';
+  var razaNom = raza ? (raza.n || '—') : '—';
 
   // Estadísticas del ciclo
-  var totHuevos = historial.reduce(function(s,r){return s+r.huevos;},0);
-  var avgPost   = historial.length>0?(historial.reduce(function(s,r){return s+r.pctPostura;},0)/historial.length).toFixed(1):'—';
-  var maxPost   = historial.length>0?Math.max.apply(null,historial.map(function(r){return r.pctPostura;})):0;
-  var diasReg   = historial.length;
+  var _hist = historial || [];
+  var totHuevos = _hist.reduce(function(s,r){return s+(r.huevos||0);},0);
+  var avgPost   = _hist.length>0?(_hist.reduce(function(s,r){return s+(r.pctPostura||0);},0)/_hist.length).toFixed(1):'—';
+  var maxPost   = _hist.length>0?Math.max.apply(null,_hist.map(function(r){return r.pctPostura||0;})):0;
+  var diasReg   = _hist.length;
 
   // Avatar progresivo según días registrados
   var _niveles = [
@@ -3679,10 +3686,12 @@ sc+='<button onclick="avigoBotonLogout()" style="width:100%;padding:13px;backgro
   return sc;
   } catch(e) {
     return '<div style="flex:1;display:flex;flex-direction:column;background:#EDFAF3">'
-      +'<div style="padding:40px 20px;text-align:center">'
+      +'<div style="flex:1;padding:32px 20px;text-align:center">'
       +'<div style="font-size:40px;margin-bottom:16px">⚙️</div>'
       +'<div style="font-size:16px;font-weight:800;color:#111827;margin-bottom:8px">Perfil</div>'
-      +'<div style="font-size:12px;color:#9CA3AF;margin-bottom:24px">Error: '+e.message+'</div>'
+      +'<div style="font-size:12px;color:#9CA3AF;margin-bottom:24px;line-height:1.5">Hubo un problema al cargar el perfil.</div>'
+      +'<button onclick="avigoBotonLogout()" style="width:100%;padding:13px;background:#FEF2F2;border:1.5px solid #FECACA;border-radius:12px;color:#DC2626;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">Cerrar sesión</button>'
+      +'<button onclick="resetApp()" style="width:100%;padding:13px;background:#FEF2F2;border:1.5px solid #FECACA;border-radius:12px;color:#DC2626;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">🗑 Reiniciar la app</button>'
       +'</div>'
       +navBar('perfil')+'</div>';
   }
@@ -6468,6 +6477,12 @@ var _lastScreen = 'dash';
 (function(){
   var _navOrig = nav;
   nav = function(name){
+    // Protección de rutas — igual que el nav original
+    var rutasProtegidas = ['dash','daily','historial','ia','tendencia','renta','bio','vac','perfil','nuevo_lote',
+      'parvada','alimentacion_natural','salud_natural','economia_traspatio','clientes_traspatio','ventas_traspatio','clientes_jaula'];
+    if(rutasProtegidas.indexOf(name) >= 0 && !avigoTieneSession()){
+      name = 'splash';
+    }
     var fn = screens[name];
     if(!fn){ console.warn('nav: pantalla no encontrada:', name); return; }
     var sc = document.getElementById('screen');
@@ -6482,14 +6497,13 @@ var _lastScreen = 'dash';
     } else if(name === 'dash' || name === 'splash' || name === 'login'){
       animClass = 'screen-fade';
     } else if(toIdx > fromIdx){
-      animClass = 'screen-enter';        // slide desde derecha
+      animClass = 'screen-enter';
     } else if(toIdx < fromIdx){
-      animClass = 'screen-enter-left';   // slide desde izquierda
+      animClass = 'screen-enter-left';
     } else {
-      animClass = 'screen-pop';          // pop para misma jerarquía
+      animClass = 'screen-pop';
     }
 
-    // Pequeño fade-out antes de cambiar
     sc.style.opacity = '0';
     sc.style.transition = 'opacity .08s ease';
 
@@ -6501,6 +6515,7 @@ var _lastScreen = 'dash';
       _lastScreen = name;
       if(afterRender && afterRender[name]) afterRender[name]();
       if(name === 'perfil'){ setTimeout(bindRecordatorios, 200); setTimeout(bindLotes, 200); }
+      if(name === 'daily' && granja.sistema === 'pastoreo') setTimeout(_bindFuentesTraspatio, 100);
     }, 80);
   };
 })();
