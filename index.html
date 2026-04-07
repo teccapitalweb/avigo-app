@@ -6645,6 +6645,12 @@ window.addEventListener('load', function() {
 // ══════════════════════════════════════════════════════════════
 // PANTALLA DE PLANES — AVIGO PRO
 // ══════════════════════════════════════════════════════════════
+function irAPlanes(){ nav('planes'); }
+function irAPerfil(){ nav('perfil'); }
+function iniciarPagoAnual(){ iniciarPago('anual'); }
+function iniciarPagoMensual(){ iniciarPago('mensual'); }
+function iniciarPagoVitalicio(){ iniciarPago('vitalicio'); }
+
 screens.planes = function() {
   var esPlanPro = esPro();
   var sc = '<div style="flex:1;display:flex;flex-direction:column;background:#F0FDF4;overflow:hidden">';
