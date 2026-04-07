@@ -6596,8 +6596,19 @@ function iniciarPago(tipo) {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    if (data.preference_id) {
-      _mostrarCheckoutBricks(data.preference_id, plan, tipo);
+    if (data.sandbox_init_point || data.init_point) {
+      var url = data.sandbox_init_point || data.init_point;
+      // Enviar al App.js para abrir dentro de la app con WebBrowser
+      if (typeof window.ReactNativeWebView !== 'undefined') {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'ABRIR_PAGO',
+          url: url,
+          tipo: tipo
+        }));
+      } else {
+        // En web — abrir en nueva pestaña
+        window.open(url, '_blank');
+      }
     } else {
       showToast('Error al crear el pago. Intenta de nuevo.');
     }
@@ -6605,6 +6616,13 @@ function iniciarPago(tipo) {
   .catch(function() {
     showToast('Sin conexión. Verifica tu internet.');
   });
+}
+
+// Función llamada desde App.js cuando el pago es exitoso
+function avigoActivarPlan(tipo) {
+  actualizarPlan('pro');
+  showToast('🎉 ¡Plan Pro activado! Bienvenido.');
+  setTimeout(function() { nav('dash'); }, 500);
 }
 
 function _mostrarCheckoutBricks(preferenceId, plan, tipo) {
