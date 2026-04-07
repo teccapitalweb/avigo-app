@@ -5837,7 +5837,7 @@ function iniciarPago(tipo) {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.sandbox_init_point || data.init_point) {
-      var url = data.sandbox_init_point || data.init_point;
+      var url = data.init_point || data.sandbox_init_point;
       if (typeof window.ReactNativeWebView !== 'undefined') {
         window.ReactNativeWebView.postMessage(JSON.stringify({
           type: 'ABRIR_PAGO',
