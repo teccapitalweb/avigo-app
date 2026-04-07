@@ -3224,10 +3224,12 @@ function renderPeriodo(dias){
 screens.historial = function(){
   setStatus(false);
   function fmx(n){ return (n||0).toLocaleString('es-MX'); }
-  // Plan Free: limitar historial a 30 días
+  // Plan Free: mostrar solo los últimos 7 días con banner de upgrade
   var _historialFiltrado = historial;
-  if (!esPro() && historial.length > 30) {
-    _historialFiltrado = historial.slice(0, 30);
+  var _histBloqueado = false;
+  if (!esPro() && historial.length > 7) {
+    _historialFiltrado = historial.slice(0, 7);
+    _histBloqueado = true;
   }
 
   function svgLinea(datos, campo, color, h){
@@ -3284,6 +3286,15 @@ screens.historial = function(){
   sc+='</div></div>';
   sc+='<div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 16px" id="hist-content">';
   sc+=renderPeriodo(7);
+  // Banner Pro si está bloqueado
+  if (_histBloqueado) {
+    sc+='<div style="background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border:1.5px solid #FDE68A;border-radius:16px;padding:16px;margin-top:12px;text-align:center">';
+    sc+='<div style="font-size:20px;margin-bottom:6px">🔒</div>';
+    sc+='<div style="font-size:14px;font-weight:800;color:#92400E;margin-bottom:4px">Historial completo — Pro</div>';
+    sc+='<div style="font-size:12px;color:#B45309;margin-bottom:12px">Estás viendo los últimos 7 días. Con Pro accedes a todo tu historial sin límite.</div>';
+    sc+='<button onclick="irAPlanes()" style="background:#16A34A;color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit">⚡ Ver planes Pro</button>';
+    sc+='</div>';
+  }
   sc+='</div>';
   sc+=navBar('historial');
   sc+='</div>';
@@ -3306,6 +3317,22 @@ function cambPer(n){
 // ─── PANTALLA RENTABILIDAD ───────────────────────────────────
 screens.renta = function(){
   setStatus(false);
+  // Plan Free: bloquear finanzas
+  if (!esPro()) {
+    var sc = '<div style="flex:1;display:flex;flex-direction:column;background:#EDFAF3;overflow:hidden">';
+    sc += '<div style="background:#16A34A;padding:14px 16px;display:flex;align-items:center;gap:10px">';
+    sc += '<div style="font-size:17px;font-weight:900;color:#fff">Rentabilidad</div>';
+    sc += '</div>';
+    sc += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center">';
+    sc += '<div style="font-size:48px;margin-bottom:16px">💰</div>';
+    sc += '<div style="font-size:20px;font-weight:900;color:#111827;margin-bottom:8px">Finanzas — Pro</div>';
+    sc += '<div style="font-size:13px;color:#6B7280;line-height:1.6;margin-bottom:24px">Analiza tus ingresos, costos y ganancias reales. Proyecciones mensuales y margen de rentabilidad.</div>';
+    sc += '<button onclick="irAPlanes()" style="background:#16A34A;color:#fff;border:none;border-radius:14px;padding:14px 28px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit">⚡ Desbloquear con Pro</button>';
+    sc += '</div>';
+    sc += navBar('renta');
+    sc += '</div>';
+    return sc;
+  }
   // Si es traspatio, mostrar economía específica primero
   if(granja.sistema === 'pastoreo') return _rentaTraspatio();
   var d  = calcDash();
@@ -3720,7 +3747,16 @@ screens.perfil = function(){
 
   // ── RECORDATORIOS DE MANEJO ──
   sc+='<div style="font-size:11px;font-weight:700;color:#9CA3AF;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Recordatorios de manejo</div>';
-  sc+=buildRecordatoriosHTML();
+  if (!esPro()) {
+    sc+='<div style="background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border:1.5px solid #FDE68A;border-radius:14px;padding:14px;text-align:center;margin-bottom:8px">';
+    sc+='<div style="font-size:24px;margin-bottom:6px">🔔</div>';
+    sc+='<div style="font-size:13px;font-weight:800;color:#92400E;margin-bottom:4px">Notificaciones — Pro</div>';
+    sc+='<div style="font-size:11px;color:#B45309;margin-bottom:10px">Activa recordatorios de alimentación, recolección y más.</div>';
+    sc+='<button onclick="irAPlanes()" style="background:#16A34A;color:#fff;border:none;border-radius:10px;padding:8px 18px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">⚡ Desbloquear</button>';
+    sc+='</div>';
+  } else {
+    sc+=buildRecordatoriosHTML();
+  }
 
 
   // ── EXPORTARR / REINICIAR ──
