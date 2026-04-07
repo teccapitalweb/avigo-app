@@ -6622,7 +6622,13 @@ function _mostrarCheckoutBricks(preferenceId, plan, tipo) {
     + '</div>'
     + '<img src="https://http2.mlstatic.com/frontend-assets/mp-web-navigation/ui-navigation/5.21.22/mercadopago/logo__large@2x.png" style="height:20px;opacity:.9" onerror="this.style.display=&quot;none&quot;">'
     + '</div>'
-    + '<div id="mp-brick-container" style="flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch"></div>';
+    + '<div style="flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch">'
+    + '<div id="mp-loading" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;gap:12px">'
+    + '<div style="width:32px;height:32px;border:3px solid #BBF7D0;border-top-color:#16A34A;border-radius:50%;animation:spin .7s linear infinite"></div>'
+    + '<div style="font-size:13px;color:#6B7280;font-weight:500">Cargando formulario seguro...</div>'
+    + '</div>'
+    + '<div id="mp-brick-container"></div>'
+    + '</div>';
 
   document.body.appendChild(ov);
 
@@ -6634,23 +6640,68 @@ function _mostrarCheckoutBricks(preferenceId, plan, tipo) {
   function _iniciarBrick() {
     var mp = new MercadoPago(_MP_PUBLIC_KEY_TEST, { locale: 'es-MX' });
     var bricksBuilder = mp.bricks();
-    bricksBuilder.create('wallet', 'mp-brick-container', {
+    bricksBuilder.create('cardPayment', 'mp-brick-container', {
       initialization: {
-        preferenceId: preferenceId,
-        redirectMode: 'self'
+        amount: plan.monto
       },
       customization: {
-        texts: { valueProp: 'smart_option' },
-        visual: { buttonBackground: 'default', borderRadius: '12px' }
+        visual: {
+          style: {
+            theme: 'default',
+            customVariables: {
+              baseColor: '#16A34A',
+              baseColorFirstVariant: '#15803D',
+              baseColorSecondVariant: '#14532D'
+            }
+          }
+        },
+        paymentMethods: { minInstallments: 1, maxInstallments: 1 }
       },
       callbacks: {
-        onReady: function() {},
-        onSubmit: function() {
+        onReady: function() {
+          // Ocultar spinner cuando el brick esté listo
+          var spinner = document.getElementById('mp-loading');
+          if (spinner) spinner.style.display = 'none';
+        },
+        onSubmit: function(cardFormData) {
           showToast('Procesando pago...');
+          // Enviar el pago al backend
+          return fetch(AVIGO_API + '/pagos/procesar', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + _avigoSession.token
+            },
+            body: JSON.stringify({
+              tipo: tipo,
+              monto: plan.monto,
+              descripcion: plan.label,
+              formData: cardFormData
+            })
+          })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.status === 'approved') {
+              // Cerrar el overlay
+              var ov = document.getElementById('mp-checkout-overlay');
+              if (ov) document.body.removeChild(ov);
+              actualizarPlan('pro');
+              showToast('🎉 ¡Plan Pro activado! Bienvenido.');
+              nav('dash');
+            } else if (data.status === 'in_process' || data.status === 'pending') {
+              var ov = document.getElementById('mp-checkout-overlay');
+              if (ov) document.body.removeChild(ov);
+              showToast('⏳ Pago en proceso. Te avisaremos cuando se confirme.');
+            } else {
+              showToast('Pago rechazado. Verifica tu tarjeta e intenta de nuevo.');
+            }
+          })
+          .catch(function() {
+            showToast('Error al procesar el pago. Intenta de nuevo.');
+          });
         },
         onError: function(error) {
           console.error('MP Brick error:', error);
-          showToast('Error en el pago. Intenta de nuevo.');
         }
       }
     });
