@@ -425,7 +425,28 @@ function probarNotificacion() {
 }
 
 // ─── ESTADO DE SESIÓN ────────────────────────────────────────
-var _avigoSession = null; // { token, usuario }
+var _avigoSession = null;
+
+// ── PLAN DEL USUARIO ──────────────────────────────────────────
+// 'free' | 'pro' — se actualiza al hacer login y al verificar pago
+var _avigoPlan = 'free';
+var _MP_PUBLIC_KEY_TEST = 'TEST-2bff8e06-e52a-4a28-ac1a-4a5872f3ffc1';
+
+function esPro() {
+  return _avigoPlan === 'pro';
+}
+
+function actualizarPlan(plan) {
+  _avigoPlan = plan || 'free';
+  try { localStorage.setItem('avigo_plan', _avigoPlan); } catch(e) {}
+}
+
+function cargarPlanGuardado() {
+  try {
+    var p = localStorage.getItem('avigo_plan');
+    if (p) _avigoPlan = p;
+  } catch(e) {}
+} // { token, usuario }
 
 // Cargar sesión guardada
 try {
@@ -447,6 +468,7 @@ function avigoLoginGoogle(credential) {
     if (data.token) {
       _avigoSession = { token: data.token, usuario: data.usuario };
       try { localStorage.setItem('avigo_session', JSON.stringify(_avigoSession)); } catch(e) {}
+      actualizarPlan(data.usuario.plan || 'free');
       var _nombre = data.usuario.nombre || data.usuario.email || 'usuario';
       showToast('Bienvenido, ' + _nombre + '!');
 
@@ -1138,7 +1160,7 @@ function showToast(msg){
 
 function nav(name){
   // ── PROTECCION DE RUTAS ─────────────────────────────────
-  var rutasProtegidas = ['dash','daily','historial','ia','tendencia','renta','bio','vac','perfil','nuevo_lote'];
+  var rutasProtegidas = ['dash','daily','historial','ia','tendencia','renta','bio','vac','perfil','planes','nuevo_lote'];
   if (rutasProtegidas.indexOf(name) >= 0 && !avigoTieneSession()) {
     name = 'splash'; // Sin sesion → siempre al splash
   }
@@ -3202,6 +3224,11 @@ function renderPeriodo(dias){
 screens.historial = function(){
   setStatus(false);
   function fmx(n){ return (n||0).toLocaleString('es-MX'); }
+  // Plan Free: limitar historial a 30 días
+  var _historialFiltrado = historial;
+  if (!esPro() && historial.length > 30) {
+    _historialFiltrado = historial.slice(0, 30);
+  }
 
   function svgLinea(datos, campo, color, h){
     // Mini SVG de línea para el resumen
@@ -3487,6 +3514,11 @@ function getLoteActivo(){
 
 function crearLote(datos){
   if(!granja.lotes) granja.lotes = [];
+  // Plan Free: solo 1 lote
+  if (!esPro() && granja.lotes.length >= 1) {
+    mostrarBloqueoProLote();
+    return null;
+  }
   var nuevoLote = {
     id:           Date.now(),
     nombre:       datos.nombre || 'Lote #'+(granja.lotes.length+1),
@@ -3697,12 +3729,16 @@ screens.perfil = function(){
 var _sesionInfo = avigoTieneSession() && _avigoSession && _avigoSession.usuario
   ? _avigoSession.usuario.nombre || _avigoSession.usuario.email
   : 'Sin sesion';
+var _planBadge = esPro()
+  ? '<span style="background:#16A34A;color:#fff;font-size:9px;font-weight:800;padding:2px 8px;border-radius:99px;margin-left:6px">PRO ⚡</span>'
+  : '<span style="background:#F3F4F6;color:#9CA3AF;font-size:9px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:6px;cursor:pointer" onclick="irAPlanes()">FREE → Upgrade</span>';
 var _sesionFoto = avigoTieneSession() && _avigoSession && _avigoSession.usuario && _avigoSession.usuario.foto
   ? _avigoSession.usuario.foto : null;
 sc+='<div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px">'
   +(_sesionFoto ? '<img src="'+_sesionFoto+'" style="width:40px;height:40px;border-radius:50%;object-fit:cover" onerror="this.style.display=\'none\'">' : '<div style="width:40px;height:40px;border-radius:50%;background:#16A34A;display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff">&#128100;</div>')
-  +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:#166534;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+_sesionInfo+'</div>'
+  +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:#166534;display:flex;align-items:center;gap:4px">'+_sesionInfo+_planBadge+'</div>'
   +'<div style="font-size:11px;color:#16A34A;font-weight:600">&#9679; Conectado a AviGo Cloud</div></div></div>';
+sc+='<button onclick="nav(\'planes\')" style="width:100%;padding:13px;background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:12px;color:#16A34A;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;margin-bottom:8px">'+(esPro()?'\u26A1 Mi plan Pro':'\u26A1 Mejorar a Pro')+'</button>';
 sc+='<button onclick="avigoBotonLogout()" style="width:100%;padding:13px;background:#FEF2F2;border:1.5px solid #FECACA;border-radius:12px;color:#DC2626;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">Cerrar sesion</button>';
   sc+='<button id="btn-reiniciar" onclick="resetApp()" style="width:100%;padding:13px;background:#FEF2F2;border:1.5px solid #FECACA;border-radius:12px;color:#DC2626;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">🗑 Reiniciar la app</button>';
   sc+='</div>';
@@ -3928,6 +3964,7 @@ function avigoLoginEmail() {
     if (res.ok && res.data.token) {
       _avigoSession = { token: res.data.token, usuario: res.data.usuario };
       try { localStorage.setItem('avigo_session', JSON.stringify(_avigoSession)); } catch(e) {}
+      actualizarPlan(res.data.usuario.plan || 'free');
       showToast('Bienvenido, ' + (res.data.usuario.nombre || res.data.usuario.email) + '!');
       var _tieneGranjaLocal = granja.lotes && granja.lotes.length > 0 &&
         granja.lotes[0] && granja.lotes[0].granjaData && granja.lotes[0].granjaData.numAves > 0;
@@ -4486,6 +4523,11 @@ if(!granja.notifActiva) granja.notifActiva = false;
 if(!granja.notifHora)   granja.notifHora   = '07:00';
 
 function toggleNotif(){
+  // Plan Free: notificaciones son Pro
+  if (!esPro() && !granja.notifActiva) {
+    mostrarBloqueoProGeneral('Notificaciones y recordatorios');
+    return;
+  }
   if(!granja.notifActiva){
     if(!('Notification' in window)){
       showToast('Notificaciones no disponibles en este navegador');
@@ -6473,6 +6515,227 @@ function guardarObsBio(val){
   };
 })();
 
+
+
+
+// ══════════════════════════════════════════════════════════════
+// MODALES DE BLOQUEO PRO
+// ══════════════════════════════════════════════════════════════
+
+function _mostrarModalPro(titulo, desc, emoji) {
+  var ov = document.createElement('div');
+  ov.id = 'modal-pro-overlay';
+  ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:flex-end;justify-content:center;padding:0';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:24px 24px 0 0;padding:28px 24px 32px;width:100%;max-width:480px;text-align:center;animation:slideUp .3s ease';
+  box.innerHTML = '<div style="width:48px;height:5px;background:#E5E7EB;border-radius:99px;margin:0 auto 20px"></div>'
+    + '<div style="font-size:44px;margin-bottom:12px">' + emoji + '</div>'
+    + '<div style="font-size:18px;font-weight:900;color:#111827;margin-bottom:8px">' + titulo + '</div>'
+    + '<div style="font-size:13px;color:#6B7280;line-height:1.6;margin-bottom:20px">' + desc + '</div>'
+    + '<button id="btn-ver-planes" style="width:100%;padding:15px;background:#16A34A;border:none;border-radius:14px;font-size:15px;font-weight:800;color:#fff;cursor:pointer;font-family:inherit;margin-bottom:10px">&#9889; Ver planes Pro</button>'
+    + '<button id="btn-cerrar-modal" style="width:100%;padding:13px;background:#F3F4F6;border:none;border-radius:14px;font-size:14px;font-weight:700;color:#374151;cursor:pointer;font-family:inherit">Ahora no</button>';
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  document.getElementById('btn-ver-planes').onclick = function(){ document.body.removeChild(ov); irAPlanes(); };
+  document.getElementById('btn-cerrar-modal').onclick = function(){ document.body.removeChild(ov); };
+  ov.addEventListener('click', function(e){ if(e.target===ov) document.body.removeChild(ov); });
+}
+
+function mostrarBloqueoProIA() {
+  _mostrarModalPro(
+    'Don Gallo Pro',
+    'Has usado tus 3 preguntas gratuitas de hoy. Con AviGo Pro tienes consultas ilimitadas con Don Gallo todos los días.',
+    '🐓'
+  );
+}
+
+function mostrarBloqueoProLote() {
+  _mostrarModalPro(
+    'Lotes ilimitados',
+    'El plan gratuito incluye 1 lote. Con AviGo Pro puedes gestionar todos los lotes que necesites sin límite.',
+    '🏠'
+  );
+}
+
+function mostrarBloqueoProGeneral(funcion) {
+  _mostrarModalPro(
+    funcion + ' — Pro',
+    'Esta función es exclusiva de AviGo Pro. Desbloquea todas las funciones por solo $79 MXN al mes.',
+    '⚡'
+  );
+}
+
+// Agregar animación slideUp
+(function(){
+  var s = document.createElement('style');
+  s.textContent = '@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}';
+  document.head.appendChild(s);
+})();
+
+// ══════════════════════════════════════════════════════════════
+// SISTEMA DE PAGOS — MERCADOPAGO
+// ══════════════════════════════════════════════════════════════
+
+var _MP_PRECIOS = {
+  mensual:  { monto: 79,    label: 'AviGo Pro Mensual',  periodo: 'mensual' },
+  anual:    { monto: 649,   label: 'AviGo Pro Anual',    periodo: 'anual'   },
+  vitalicio:{ monto: 1199,  label: 'AviGo Pro Vitalicio',periodo: 'unico'   }
+};
+
+function iniciarPago(tipo) {
+  if (!avigoTieneSession()) { nav('splash'); return; }
+  var plan = _MP_PRECIOS[tipo];
+  if (!plan) return;
+
+  showToast('Preparando pago seguro...');
+
+  fetch(AVIGO_API + '/pagos/crear-preferencia', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _avigoSession.token },
+    body: JSON.stringify({ tipo: tipo, monto: plan.monto, descripcion: plan.label })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.init_point) {
+      // Abrir MercadoPago en el browser
+      if (typeof window.ReactNativeWebView !== 'undefined') {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'ABRIR_URL',
+          url: data.init_point
+        }));
+      } else {
+        window.open(data.init_point, '_blank');
+      }
+    } else {
+      showToast('Error al crear el pago. Intenta de nuevo.');
+    }
+  })
+  .catch(function() {
+    showToast('Sin conexión. Verifica tu internet.');
+  });
+}
+
+function verificarPago() {
+  if (!avigoTieneSession()) return;
+  fetch(AVIGO_API + '/pagos/verificar', {
+    headers: { 'Authorization': 'Bearer ' + _avigoSession.token }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.plan) {
+      actualizarPlan(data.plan);
+      if (data.plan === 'pro') {
+        showToast('🎉 ¡Plan Pro activado!');
+      }
+    }
+  })
+  .catch(function() {});
+}
+
+// Verificar plan al cargar si hay sesión
+window.addEventListener('load', function() {
+  setTimeout(function() {
+    if (avigoTieneSession()) {
+      cargarPlanGuardado();
+      verificarPago();
+    }
+  }, 2000);
+});
+
+// ══════════════════════════════════════════════════════════════
+// PANTALLA DE PLANES — AVIGO PRO
+// ══════════════════════════════════════════════════════════════
+screens.planes = function() {
+  var esPlanPro = esPro();
+  var sc = '<div style="flex:1;display:flex;flex-direction:column;background:#F0FDF4;overflow:hidden">';
+
+  // Header
+  sc += '<div style="background:#16A34A;padding:16px;display:flex;align-items:center;gap:12px">';
+  sc += '<button onclick="irAPerfil()" style="background:rgba(255,255,255,.2);border:none;border-radius:10px;padding:8px;cursor:pointer;display:flex;align-items:center">';
+  sc += '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>';
+  sc += '<div style="font-size:17px;font-weight:900;color:#fff">AviGo Pro</div>';
+  sc += '</div>';
+  sc += '<div class="scroll" style="flex:1;padding:16px">';
+
+  if (esPlanPro) {
+    sc += '<div style="background:linear-gradient(135deg,#16A34A,#15803D);border-radius:20px;padding:24px;text-align:center;margin-bottom:16px;color:#fff">';
+    sc += '<div style="font-size:40px;margin-bottom:8px">&#127942;</div>';
+    sc += '<div style="font-size:20px;font-weight:900;margin-bottom:4px">&#161;Eres AviGo Pro!</div>';
+    sc += '<div style="font-size:13px;opacity:.85">Tienes acceso completo a todas las funciones</div>';
+    sc += '</div>';
+    sc += '<div style="background:#fff;border-radius:16px;padding:16px;margin-bottom:12px">';
+    sc += '<div style="font-size:14px;font-weight:800;color:#111827;margin-bottom:12px">&#10003; Tu plan incluye</div>';
+    var funcPro = ['Lotes ilimitados','Don Gallo IA sin l\u00edmite','Notificaciones y recordatorios','Historial completo','Tendencias y an\u00e1lisis','Rentabilidad y finanzas','M\u00f3dulos de traspatio','Clientes y ventas'];
+    funcPro.forEach(function(f){ sc += '<div style="font-size:13px;color:#374151;padding:6px 0;border-bottom:1px solid #F9FAFB">&#10003; '+f+'</div>'; });
+    sc += '</div>';
+    sc += '<button onclick="irAPerfil()" style="width:100%;padding:14px;background:#16A34A;border:none;border-radius:14px;font-size:15px;font-weight:800;color:#fff;cursor:pointer;font-family:inherit">Ir al perfil</button>';
+  } else {
+    sc += '<div style="text-align:center;padding:8px 0 20px">';
+    sc += '<div style="font-size:28px;font-weight:900;color:#111827;letter-spacing:-.5px">Desbloquea AviGo Pro</div>';
+    sc += '<div style="font-size:13px;color:#6B7280;margin-top:6px">Gestiona tu granja al m\u00e1ximo nivel</div>';
+    sc += '</div>';
+
+    sc += '<div style="background:#fff;border-radius:16px;padding:16px;margin-bottom:16px">';
+    sc += '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;margin-bottom:8px">';
+    sc += '<div style="font-size:12px;font-weight:800;color:#9CA3AF;padding:8px;text-align:center">GRATIS</div>';
+    sc += '<div style="font-size:12px;font-weight:800;color:#16A34A;padding:8px;text-align:center;background:#F0FDF4;border-radius:10px">PRO &#9889;</div>';
+    sc += '</div>';
+    var comparacion = [
+      ['1 lote','Lotes ilimitados'],
+      ['3 preguntas/d\u00eda','Don Gallo ilimitado'],
+      ['Sin notificaciones','Notificaciones'],
+      ['Historial 30 d\u00edas','Historial completo'],
+      ['Sin tendencias','Tendencias'],
+      ['Sin finanzas','Rentabilidad'],
+      ['Sin traspatio','M\u00f3dulos traspatio'],
+      ['Sin clientes','Clientes y ventas'],
+    ];
+    comparacion.forEach(function(row, i) {
+      var bg = i%2===0 ? '#F9FAFB' : '#fff';
+      sc += '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));background:'+bg+';border-radius:8px;margin-bottom:2px">';
+      sc += '<div style="font-size:11px;color:#9CA3AF;padding:8px">&#10007; '+row[0]+'</div>';
+      sc += '<div style="font-size:11px;color:#16A34A;padding:8px;font-weight:600">&#10003; '+row[1]+'</div>';
+      sc += '</div>';
+    });
+    sc += '</div>';
+
+    // Plan anual destacado
+    sc += '<div style="position:relative;background:linear-gradient(135deg,#16A34A,#15803D);border-radius:20px;padding:20px;margin-bottom:12px;cursor:pointer" onclick="iniciarPagoAnual()">';
+    sc += '<div style="position:absolute;top:-10px;right:16px;background:#FBBF24;color:#78350F;font-size:10px;font-weight:900;padding:4px 12px;border-radius:99px">&#11088; M\u00c1S POPULAR</div>';
+    sc += '<div style="display:flex;justify-content:space-between;align-items:center">';
+    sc += '<div><div style="font-size:16px;font-weight:900;color:#fff">Plan Anual</div>';
+    sc += '<div style="font-size:12px;color:rgba(255,255,255,.8);margin-top:2px">$54/mes &middot; Ahorra 31%</div></div>';
+    sc += '<div style="text-align:right"><div style="font-size:26px;font-weight:900;color:#fff">$649</div>';
+    sc += '<div style="font-size:10px;color:rgba(255,255,255,.7)">MXN / a\u00f1o</div></div>';
+    sc += '</div>';
+    sc += '<div style="margin-top:14px;background:rgba(255,255,255,.2);border:none;border-radius:12px;padding:12px;text-align:center;font-size:14px;font-weight:800;color:#fff">Elegir anual &#8594;</div>';
+    sc += '</div>';
+
+    // Plan mensual
+    sc += '<div style="background:#fff;border:1.5px solid #E5E7EB;border-radius:16px;padding:18px;margin-bottom:12px;cursor:pointer" onclick="iniciarPagoMensual()">';
+    sc += '<div style="display:flex;justify-content:space-between;align-items:center">';
+    sc += '<div><div style="font-size:15px;font-weight:800;color:#111827">Plan Mensual</div>';
+    sc += '<div style="font-size:12px;color:#9CA3AF;margin-top:2px">Cancela cuando quieras</div></div>';
+    sc += '<div style="text-align:right"><div style="font-size:22px;font-weight:900;color:#111827">$79</div>';
+    sc += '<div style="font-size:10px;color:#9CA3AF">MXN / mes</div></div>';
+    sc += '</div></div>';
+
+    // Plan vitalicio
+    sc += '<div style="background:#1E1B4B;border-radius:16px;padding:18px;margin-bottom:20px;cursor:pointer" onclick="iniciarPagoVitalicio()">';
+    sc += '<div style="display:flex;justify-content:space-between;align-items:center">';
+    sc += '<div><div style="font-size:15px;font-weight:800;color:#fff">De por vida</div>';
+    sc += '<div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px">Pago \u00fanico &middot; Para siempre</div></div>';
+    sc += '<div style="text-align:right"><div style="font-size:22px;font-weight:900;color:#C4B5FD">$1,199</div>';
+    sc += '<div style="font-size:10px;color:rgba(255,255,255,.5)">MXN \u00fanico</div></div>';
+    sc += '</div></div>';
+
+    sc += '<div style="font-size:10px;color:#9CA3AF;text-align:center;line-height:1.6">Pago seguro con MercadoPago &middot; Acepta tarjetas, OXXO y transferencia</div>';
+  }
+
+  sc += '</div></div>';
+  return sc;
+};
+
 // ─── INICIO DE APP — espera DOM listo ──────────────────────────
 window.addEventListener('DOMContentLoaded', function(){
   var yaHayDatos = cargarDeStorage();
@@ -6530,7 +6793,7 @@ window.addEventListener('DOMContentLoaded', function(){
 })();
 
 // Mapa de relaciones de pantallas para dirección de animación
-var NAV_ORDER = ['intro','splash','login','registro','forgot','reset','ob1','ob2','ob3','ob4','dash','daily','historial','ia','tendencia','renta','bio','vac','perfil','nuevo_lote','parvada','alimentacion_natural','salud_natural','economia_traspatio','ventas_traspatio','clientes_traspatio','clientes_jaula','calendario'];
+var NAV_ORDER = ['intro','splash','login','registro','forgot','reset','ob1','ob2','ob3','ob4','dash','daily','historial','ia','tendencia','renta','bio','vac','perfil','planes','nuevo_lote','parvada','alimentacion_natural','salud_natural','economia_traspatio','ventas_traspatio','clientes_traspatio','clientes_jaula','calendario'];
 var _lastScreen = 'dash';
 
 // Override nav con animaciones
@@ -6538,7 +6801,7 @@ var _lastScreen = 'dash';
   var _navOrig = nav;
   nav = function(name){
     // Protección de rutas — igual que el nav original
-    var rutasProtegidas = ['dash','daily','historial','ia','tendencia','renta','bio','vac','perfil','nuevo_lote',
+    var rutasProtegidas = ['dash','daily','historial','ia','tendencia','renta','bio','vac','perfil','planes','nuevo_lote',
       'parvada','alimentacion_natural','salud_natural','economia_traspatio','clientes_traspatio','ventas_traspatio','clientes_jaula'];
     if(rutasProtegidas.indexOf(name) >= 0 && !avigoTieneSession()){
       name = 'splash';
@@ -6774,6 +7037,21 @@ function enviarPreguntaIA(textoForzado){
   if(!chat) return;
   var texto = textoForzado || (inp ? inp.value.trim() : '');
   if(!texto) return;
+
+  // ── Límite para plan Free: 3 preguntas/día ───────────────
+  if (!esPro()) {
+    var hoy = new Date().toISOString().split('T')[0];
+    var keyIA = 'avigo_ia_' + hoy;
+    var conteo = 0;
+    try { conteo = parseInt(localStorage.getItem(keyIA) || '0'); } catch(e) {}
+    if (conteo >= 3) {
+      // Mostrar modal de upgrade
+      mostrarBloqueoProIA();
+      return;
+    }
+    try { localStorage.setItem(keyIA, String(conteo + 1)); } catch(e) {}
+  }
+
   if(inp) { inp.value=''; inp.style.height='auto'; }
 
   // Mensaje usuario
