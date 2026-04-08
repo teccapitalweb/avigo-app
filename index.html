@@ -5974,14 +5974,38 @@ function verificarPago() {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    if (data.plan) {
+    if (data.plan === 'pro' && !esPro()) {
+      actualizarPlan('pro');
+      _mostrarBienvenidaPro();
+    } else if (data.plan) {
       actualizarPlan(data.plan);
-      if (data.plan === 'pro') {
-        showToast('🎉 ¡Plan Pro activado!');
-      }
     }
   })
   .catch(function() {});
+}
+
+function _mostrarBienvenidaPro() {
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:24px;padding:32px 24px;max-width:340px;width:100%;text-align:center';
+  box.innerHTML = '<div style="font-size:56px;margin-bottom:12px">🎉</div>'
+    + '<div style="font-size:22px;font-weight:900;color:#111827;margin-bottom:8px">¡Ya eres Pro!</div>'
+    + '<div style="font-size:14px;color:#6B7280;line-height:1.6;margin-bottom:24px">Pago recibido. Ahora tienes acceso a todas las funciones de AviGo Pro. ¡Disfruta al máximo tu granja!</div>'
+    + '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">'
+    + '<div style="background:#F0FDF4;border-radius:10px;padding:10px;font-size:13px;color:#16A34A;font-weight:700">✓ Lotes ilimitados</div>'
+    + '<div style="background:#F0FDF4;border-radius:10px;padding:10px;font-size:13px;color:#16A34A;font-weight:700">✓ Don Gallo ilimitado</div>'
+    + '<div style="background:#F0FDF4;border-radius:10px;padding:10px;font-size:13px;color:#16A34A;font-weight:700">✓ Historial completo</div>'
+    + '<div style="background:#F0FDF4;border-radius:10px;padding:10px;font-size:13px;color:#16A34A;font-weight:700">✓ Finanzas y rentabilidad</div>'
+    + '<div style="background:#F0FDF4;border-radius:10px;padding:10px;font-size:13px;color:#16A34A;font-weight:700">✓ Notificaciones activas</div>'
+    + '</div>'
+    + '<button id="btn-bienvenida-pro" style="width:100%;padding:15px;background:#16A34A;border:none;border-radius:14px;font-size:16px;font-weight:900;color:#fff;cursor:pointer;font-family:inherit">¡Empezar ahora! ⚡</button>';
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  document.getElementById('btn-bienvenida-pro').onclick = function() {
+    document.body.removeChild(ov);
+    nav('dash');
+  };
 }
 
 window.addEventListener('load', function() {
