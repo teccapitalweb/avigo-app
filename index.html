@@ -223,8 +223,9 @@ function avigoLoginGoogle(credential) {
         granja.lotes[0] && granja.lotes[0].granjaData &&
         granja.lotes[0].granjaData.numAves > 0;
 
-      // Si es nuevo, no tiene granja local, o el backend dice que es nuevo → onboarding
-      if (data.usuario.esNuevo || !_tieneGranjaLocal || !data.usuario.tieneGranja) {
+      // Si es nuevo o no tiene granja local → onboarding
+      // Solo verificar esNuevo y granja local — NO usar tieneGranja del backend
+      if (data.usuario.esNuevo || !_tieneGranjaLocal) {
         iniciarPruebaGratuita();
         setTimeout(inicializarPush, 2000);
         nav('ob1');
