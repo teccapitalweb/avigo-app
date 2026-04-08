@@ -190,6 +190,10 @@ function cargarPlanGuardado() {
   try {
     var p = localStorage.getItem('avigo_plan');
     if (p) _avigoPlan = p;
+    // Si tiene sesión activa pero no tiene trial, iniciar prueba gratuita
+    if (_avigoPlan !== 'pro' && !localStorage.getItem('avigo_trial_start')) {
+      iniciarPruebaGratuita();
+    }
   } catch(e) {}
 } // { token, usuario }
 
@@ -214,12 +218,13 @@ function avigoLoginGoogle(credential) {
       var _nombre = data.usuario.nombre || data.usuario.email || 'usuario';
       showToast('Bienvenido, ' + _nombre + '!');
 
+      // Verificar si el usuario tiene granja configurada en el backend
       var _tieneGranjaLocal = granja.lotes && granja.lotes.length > 0 &&
         granja.lotes[0] && granja.lotes[0].granjaData &&
         granja.lotes[0].granjaData.numAves > 0;
 
-      if (data.usuario.esNuevo || !_tieneGranjaLocal) {
-        // Iniciar prueba gratuita de 7 días para usuarios nuevos
+      // Si es nuevo, no tiene granja local, o el backend dice que es nuevo → onboarding
+      if (data.usuario.esNuevo || !_tieneGranjaLocal || !data.usuario.tieneGranja) {
         iniciarPruebaGratuita();
         setTimeout(inicializarPush, 2000);
         nav('ob1');
