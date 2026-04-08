@@ -137,7 +137,48 @@ var _avigoPlan = 'free';
 var _MP_PUBLIC_KEY_TEST = 'APP_USR-e5cec480-cef6-4327-8ac2-46707b792831';
 
 function esPro() {
-  return _avigoPlan === 'pro';
+  if (_avigoPlan === 'pro') return true;
+  // Verificar prueba gratuita de 7 días
+  try {
+    var trial = localStorage.getItem('avigo_trial_start');
+    if (trial) {
+      var diasTranscurridos = (Date.now() - parseInt(trial)) / (1000 * 60 * 60 * 24);
+      if (diasTranscurridos < 7) return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+function estaEnPrueba() {
+  if (_avigoPlan === 'pro') return false;
+  try {
+    var trial = localStorage.getItem('avigo_trial_start');
+    if (trial) {
+      var diasTranscurridos = (Date.now() - parseInt(trial)) / (1000 * 60 * 60 * 24);
+      return diasTranscurridos < 7;
+    }
+  } catch(e) {}
+  return false;
+}
+
+function diasRestantesPrueba() {
+  try {
+    var trial = localStorage.getItem('avigo_trial_start');
+    if (trial) {
+      var diasTranscurridos = (Date.now() - parseInt(trial)) / (1000 * 60 * 60 * 24);
+      var restantes = Math.ceil(7 - diasTranscurridos);
+      return restantes > 0 ? restantes : 0;
+    }
+  } catch(e) {}
+  return 0;
+}
+
+function iniciarPruebaGratuita() {
+  try {
+    if (!localStorage.getItem('avigo_trial_start')) {
+      localStorage.setItem('avigo_trial_start', Date.now().toString());
+    }
+  } catch(e) {}
 }
 
 function actualizarPlan(plan) {
@@ -178,6 +219,8 @@ function avigoLoginGoogle(credential) {
         granja.lotes[0].granjaData.numAves > 0;
 
       if (data.usuario.esNuevo || !_tieneGranjaLocal) {
+        // Iniciar prueba gratuita de 7 días para usuarios nuevos
+        iniciarPruebaGratuita();
         setTimeout(inicializarPush, 2000);
         nav('ob1');
         return;
@@ -3255,8 +3298,11 @@ screens.perfil = function(){
 var _sesionInfo = avigoTieneSession() && _avigoSession && _avigoSession.usuario
   ? _avigoSession.usuario.nombre || _avigoSession.usuario.email
   : 'Sin sesion';
-var _planBadge = esPro()
+var _diasTrial = diasRestantesPrueba();
+var _planBadge = (_avigoPlan === 'pro')
   ? '<span style="background:#16A34A;color:#fff;font-size:9px;font-weight:800;padding:2px 8px;border-radius:99px;margin-left:6px">PRO ⚡</span>'
+  : estaEnPrueba()
+  ? '<span style="background:#FBBF24;color:#78350F;font-size:9px;font-weight:800;padding:2px 8px;border-radius:99px;margin-left:6px">PRUEBA · '+_diasTrial+' días</span>'
   : '<span style="background:#F3F4F6;color:#9CA3AF;font-size:9px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:6px;cursor:pointer" onclick="irAPlanes()">FREE → Upgrade</span>';
 var _sesionFoto = avigoTieneSession() && _avigoSession && _avigoSession.usuario && _avigoSession.usuario.foto
   ? _avigoSession.usuario.foto : null;
@@ -6119,11 +6165,25 @@ window.addEventListener('DOMContentLoaded', function(){
       setTimeout(function() {
         if (avigoTieneSession()) {
           verificarPago();
-          showToast('🎉 ¡Pago recibido! Activando tu plan Pro...');
+          showToast('Verificando tu pago...');
         }
       }, 2000);
     }
   } catch(e) {}
+
+  // Verificar estado de prueba gratuita al iniciar
+  setTimeout(function() {
+    try {
+      var _trialStart = localStorage.getItem('avigo_trial_start');
+      if (_trialStart && _avigoPlan !== 'pro') {
+        var _diasPasados = (Date.now() - parseInt(_trialStart)) / (1000 * 60 * 60 * 24);
+        var _diasLeft = Math.ceil(7 - _diasPasados);
+        if (_diasLeft <= 2 && _diasLeft > 0) {
+          showToast('⚠️ Tu prueba gratis termina en ' + _diasLeft + ' día' + (_diasLeft === 1 ? '' : 's') + '. ¡No pierdas el acceso Pro!');
+        }
+      }
+    } catch(e) {}
+  }, 3000);
 
   var yaHayDatos = cargarDeStorage();
   if(!granja.lotes)   granja.lotes  = [];
