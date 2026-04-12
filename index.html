@@ -212,20 +212,45 @@ function avigoLoginGoogle(credential) {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.token) {
+      // Verificar si es un usuario diferente al que usó el dispositivo antes
+      var _ultimoUserId = null;
+      try { _ultimoUserId = localStorage.getItem('avigo_ultimo_usuario'); } catch(e) {}
+      var _esUsuarioDiferente = _ultimoUserId && _ultimoUserId !== data.usuario.id;
+
+      // Si es usuario diferente, limpiar datos del anterior
+      if (_esUsuarioDiferente) {
+        try { localStorage.removeItem('avigo_v1'); } catch(e) {}
+        try { localStorage.removeItem('avigo_plan'); } catch(e) {}
+        try { localStorage.removeItem('avigo_trial_start'); } catch(e) {}
+        historial = [];
+        alertas = [];
+        granja = {
+          nombre:'', estado:'', municipio:'', altitud:0, galpones:1,
+          raza:RAZAS[0], sistema:'jaula', numAves:0, semanaVida:0,
+          etapa:null, fechaInicio:null, precioKgAl:0, avesVivas:0,
+          precioHuevo:0, kgBulto:40, inventarioKg:0, bultosCompra:0,
+          tempHoy:22, climaLat:null, climaLon:null, notifActiva:false,
+          notifHora:'07:00', vacunas:[], recordatorios:{}, lotes:[],
+          loteActivo:0, clientesJaula:[], traspatio:{},
+        };
+      }
+
+      // Guardar el ID del usuario actual para comparar en el futuro
+      try { localStorage.setItem('avigo_ultimo_usuario', data.usuario.id); } catch(e) {}
+
       _avigoSession = { token: data.token, usuario: data.usuario };
       try { localStorage.setItem('avigo_session', JSON.stringify(_avigoSession)); } catch(e) {}
       actualizarPlan(data.usuario.plan || 'free');
       var _nombre = data.usuario.nombre || data.usuario.email || 'usuario';
       showToast('Bienvenido, ' + _nombre + '!');
 
-      // Verificar si el usuario tiene granja configurada en el backend
-      var _tieneGranjaLocal = granja.lotes && granja.lotes.length > 0 &&
+      // Verificar si el usuario tiene granja configurada
+      var _tieneGranjaLocal = !_esUsuarioDiferente && granja.lotes && granja.lotes.length > 0 &&
         granja.lotes[0] && granja.lotes[0].granjaData &&
         granja.lotes[0].granjaData.numAves > 0;
 
-      // Si es nuevo o no tiene granja local → onboarding
-      // Solo verificar esNuevo y granja local — NO usar tieneGranja del backend
-      if (data.usuario.esNuevo || !_tieneGranjaLocal) {
+      // Si es nuevo, usuario diferente, o no tiene granja local → onboarding
+      if (data.usuario.esNuevo || _esUsuarioDiferente || !_tieneGranjaLocal) {
         iniciarPruebaGratuita();
         setTimeout(inicializarPush, 2000);
         nav('ob1');
@@ -3526,17 +3551,30 @@ function avigoLoginEmail() {
   .then(function(res) {
     if (btn) { btn.disabled=false; btn.textContent='Iniciar sesion'; }
     if (res.ok && res.data.token) {
+      // Verificar si es usuario diferente
+      var _ultiId = null;
+      try { _ultiId = localStorage.getItem('avigo_ultimo_usuario'); } catch(e) {}
+      var _distinto = _ultiId && _ultiId !== res.data.usuario.id;
+      if (_distinto) {
+        try { localStorage.removeItem('avigo_v1'); } catch(e) {}
+        try { localStorage.removeItem('avigo_plan'); } catch(e) {}
+        try { localStorage.removeItem('avigo_trial_start'); } catch(e) {}
+        historial = []; alertas = [];
+        granja = { nombre:'', estado:'', municipio:'', altitud:0, galpones:1, raza:RAZAS[0], sistema:'jaula', numAves:0, semanaVida:0, etapa:null, fechaInicio:null, precioKgAl:0, avesVivas:0, precioHuevo:0, kgBulto:40, inventarioKg:0, bultosCompra:0, tempHoy:22, climaLat:null, climaLon:null, notifActiva:false, notifHora:'07:00', vacunas:[], recordatorios:{}, lotes:[], loteActivo:0, clientesJaula:[], traspatio:{} };
+      }
+      try { localStorage.setItem('avigo_ultimo_usuario', res.data.usuario.id); } catch(e) {}
       _avigoSession = { token: res.data.token, usuario: res.data.usuario };
       try { localStorage.setItem('avigo_session', JSON.stringify(_avigoSession)); } catch(e) {}
       actualizarPlan(res.data.usuario.plan || 'free');
       showToast('Bienvenido, ' + (res.data.usuario.nombre || res.data.usuario.email) + '!');
-      var _tieneGranjaLocal = granja.lotes && granja.lotes.length > 0 &&
+      var _tieneGranjaLocal = !_distinto && granja.lotes && granja.lotes.length > 0 &&
         granja.lotes[0] && granja.lotes[0].granjaData && granja.lotes[0].granjaData.numAves > 0;
       if (_tieneGranjaLocal) {
         setTimeout(function(){ avigoSyncGranja(granja); }, 2000);
         setTimeout(inicializarPush, 2000);
         nav('dash');
       } else {
+        iniciarPruebaGratuita();
         avigoCargarDatos();
       }
     } else {
