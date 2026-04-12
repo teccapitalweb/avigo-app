@@ -176,29 +176,14 @@ function avigoLoginGoogle(credential) {
       try { _ultimoUserId = localStorage.getItem('avigo_ultimo_usuario'); } catch(e) {}
       var _esUsuarioDiferente = _ultimoUserId && _ultimoUserId !== data.usuario.id;
 
-      // Si es usuario diferente, limpiar datos del anterior
-      if (_esUsuarioDiferente) {
-        try { localStorage.removeItem('avigo_v1'); } catch(e) {}
-        try { localStorage.removeItem('avigo_plan'); } catch(e) {}
-        try { localStorage.removeItem('avigo_trial_start'); } catch(e) {}
-        historial = [];
-        alertas = [];
-        granja = {
-          nombre:'', estado:'', municipio:'', altitud:0, galpones:1,
-          raza:RAZAS[0], sistema:'jaula', numAves:0, semanaVida:0,
-          etapa:null, fechaInicio:null, precioKgAl:0, avesVivas:0,
-          precioHuevo:0, kgBulto:40, inventarioKg:0, bultosCompra:0,
-          tempHoy:22, climaLat:null, climaLon:null, notifActiva:false,
-          notifHora:'07:00', vacunas:[], recordatorios:{}, lotes:[],
-          loteActivo:0, clientesJaula:[], traspatio:{},
-        };
-      }
+      // Usuario diferente — sus datos se cargarán desde su propia clave de storage
 
       // Guardar el ID del usuario actual para comparar en el futuro
       try { localStorage.setItem('avigo_ultimo_usuario', data.usuario.id); } catch(e) {}
 
       _avigoSession = { token: data.token, usuario: data.usuario };
       try { localStorage.setItem('avigo_session', JSON.stringify(_avigoSession)); } catch(e) {}
+      LS_KEY = getStorageKey();
       actualizarPlan(data.usuario.plan || 'free');
       var _nombre = data.usuario.nombre || data.usuario.email || 'usuario';
       showToast('Bienvenido, ' + _nombre + '!');
@@ -2416,7 +2401,19 @@ function updateClock(){
 setInterval(updateClock, 10000);
 updateClock();
 
-const LS_KEY = 'avigo_v1';
+function getStorageKey() {
+  try {
+    var s = localStorage.getItem('avigo_session');
+    if (s) {
+      var sess = JSON.parse(s);
+      if (sess && sess.usuario && sess.usuario.id) {
+        return 'avigo_v1_' + sess.usuario.id;
+      }
+    }
+  } catch(e) {}
+  return 'avigo_v1';
+}
+var LS_KEY = getStorageKey();
 var _reseteando = false;
 
 (function(){
@@ -3511,16 +3508,11 @@ function avigoLoginEmail() {
       var _ultiId = null;
       try { _ultiId = localStorage.getItem('avigo_ultimo_usuario'); } catch(e) {}
       var _distinto = _ultiId && _ultiId !== res.data.usuario.id;
-      if (_distinto) {
-        try { localStorage.removeItem('avigo_v1'); } catch(e) {}
-        try { localStorage.removeItem('avigo_plan'); } catch(e) {}
-        try { localStorage.removeItem('avigo_trial_start'); } catch(e) {}
-        historial = []; alertas = [];
-        granja = { nombre:'', estado:'', municipio:'', altitud:0, galpones:1, raza:RAZAS[0], sistema:'jaula', numAves:0, semanaVida:0, etapa:null, fechaInicio:null, precioKgAl:0, avesVivas:0, precioHuevo:0, kgBulto:40, inventarioKg:0, bultosCompra:0, tempHoy:22, climaLat:null, climaLon:null, notifActiva:false, notifHora:'07:00', vacunas:[], recordatorios:{}, lotes:[], loteActivo:0, clientesJaula:[], traspatio:{} };
-      }
+      // Usuario diferente — sus datos se cargarán desde su propia clave de storage
       try { localStorage.setItem('avigo_ultimo_usuario', res.data.usuario.id); } catch(e) {}
       _avigoSession = { token: res.data.token, usuario: res.data.usuario };
       try { localStorage.setItem('avigo_session', JSON.stringify(_avigoSession)); } catch(e) {}
+      LS_KEY = getStorageKey();
       actualizarPlan(res.data.usuario.plan || 'free');
       showToast('Bienvenido, ' + (res.data.usuario.nombre || res.data.usuario.email) + '!');
       var _tieneGranjaLocal = !_distinto && granja.lotes && granja.lotes.length > 0 &&
