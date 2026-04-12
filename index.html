@@ -136,23 +136,132 @@ var _avigoSession = null;
 var _avigoPlan = 'free';
 var _MP_PUBLIC_KEY_TEST = 'APP_USR-e5cec480-cef6-4327-8ac2-46707b792831';
 
-function esPro() {
-  return _avigoPlan === 'pro';
+// ── SISTEMA DE PLAN COMPLETO ─────────────────────────────────
+
+function _getPlanData() {
+  try {
+    var d = localStorage.getItem('avigo_plan_data');
+    return d ? JSON.parse(d) : {};
+  } catch(e) { return {}; }
 }
 
-function estaEnPrueba() { return false; }
-function diasRestantesPrueba() { return 0; }
-function iniciarPruebaGratuita() {}
+function _setPlanData(data) {
+  try { localStorage.setItem('avigo_plan_data', JSON.stringify(data)); } catch(e) {}
+}
 
-function actualizarPlan(plan) {
+function esPro() {
+  if (_avigoPlan === 'pro') {
+    // Verificar si el plan pagado no ha expirado
+    var d = _getPlanData();
+    if (d.expira && new Date(d.expira) < new Date()) {
+      // Plan expirado — desactivar
+      _avigoPlan = 'free';
+      try { localStorage.setItem('avigo_plan', 'free'); } catch(e) {}
+      return false;
+    }
+    return true;
+  }
+  // Verificar prueba gratuita de 7 días
+  var d = _getPlanData();
+  if (d.trialStart) {
+    var diasTranscurridos = (Date.now() - parseInt(d.trialStart)) / (1000 * 60 * 60 * 24);
+    if (diasTranscurridos < 7) return true;
+  }
+  return false;
+}
+
+function estaEnPrueba() {
+  if (_avigoPlan === 'pro') return false;
+  var d = _getPlanData();
+  if (d.trialStart) {
+    var diasTranscurridos = (Date.now() - parseInt(d.trialStart)) / (1000 * 60 * 60 * 24);
+    return diasTranscurridos < 7;
+  }
+  return false;
+}
+
+function diasRestantesPrueba() {
+  var d = _getPlanData();
+  if (d.trialStart) {
+    var diasTranscurridos = (Date.now() - parseInt(d.trialStart)) / (1000 * 60 * 60 * 24);
+    var restantes = Math.ceil(7 - diasTranscurridos);
+    return restantes > 0 ? restantes : 0;
+  }
+  return 0;
+}
+
+function iniciarPruebaGratuita() {
+  var d = _getPlanData();
+  if (!d.trialStart) {
+    d.trialStart = Date.now().toString();
+    _setPlanData(d);
+  }
+}
+
+function tienePlanPagado() {
+  var d = _getPlanData();
+  return d.planTipo && _avigoPlan === 'pro';
+}
+
+function _confirmarCancelarPlan() {
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:20px;padding:24px;max-width:320px;width:100%;text-align:center';
+  box.innerHTML = '<div style="font-size:36px;margin-bottom:12px">⚠️</div>'
+    + '<div style="font-size:17px;font-weight:900;color:#111827;margin-bottom:8px">¿Cancelar tu plan?</div>'
+    + '<div style="font-size:13px;color:#6B7280;line-height:1.5;margin-bottom:20px">Perderás el acceso Pro inmediatamente. Podrás reactivarlo cuando quieras.</div>'
+    + '<button id="btn-si-cancelar" style="width:100%;padding:13px;background:#DC2626;border:none;border-radius:12px;font-size:14px;font-weight:800;color:#fff;cursor:pointer;font-family:inherit;margin-bottom:8px">Sí, cancelar plan</button>'
+    + '<button id="btn-no-cancelar" style="width:100%;padding:13px;background:#F3F4F6;border:none;border-radius:12px;font-size:14px;font-weight:700;color:#374151;cursor:pointer;font-family:inherit">No, mantener plan</button>';
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  document.getElementById('btn-si-cancelar').onclick = function() { document.body.removeChild(ov); cancelarPlan(); };
+  document.getElementById('btn-no-cancelar').onclick = function() { document.body.removeChild(ov); };
+}
+
+function cancelarPlan() {
+  var d = _getPlanData();
+  d.cancelado = true;
+  d.expira = new Date().toISOString(); // expira ahora
+  _setPlanData(d);
+  _avigoPlan = 'free';
+  try { localStorage.setItem('avigo_plan', 'free'); } catch(e) {}
+  showToast('Plan cancelado. Seguirás con el plan gratuito.');
+  nav('dash');
+}
+
+function actualizarPlan(plan, planTipo, expira) {
   _avigoPlan = plan || 'free';
   try { localStorage.setItem('avigo_plan', _avigoPlan); } catch(e) {}
+  if (plan === 'pro' && planTipo) {
+    var d = _getPlanData();
+    d.planTipo = planTipo;
+    d.activadoEn = new Date().toISOString();
+    d.cancelado = false;
+    if (expira) {
+      d.expira = expira;
+    } else if (planTipo === 'mensual') {
+      d.expira = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    } else if (planTipo === 'anual') {
+      d.expira = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    } else if (planTipo === 'vitalicio') {
+      d.expira = null; // nunca expira
+    }
+    _setPlanData(d);
+  }
 }
 
 function cargarPlanGuardado() {
   try {
     var p = localStorage.getItem('avigo_plan');
     if (p) _avigoPlan = p;
+    // Iniciar prueba gratuita si es la primera vez
+    if (_avigoPlan !== 'pro') {
+      var d = _getPlanData();
+      if (!d.trialStart) {
+        iniciarPruebaGratuita();
+      }
+    }
   } catch(e) {}
 } // { token, usuario }
 
@@ -3307,8 +3416,11 @@ screens.perfil = function(){
 var _sesionInfo = avigoTieneSession() && _avigoSession && _avigoSession.usuario
   ? _avigoSession.usuario.nombre || _avigoSession.usuario.email
   : 'Sin sesion';
-var _planBadge = esPro()
+var _diasTrial = diasRestantesPrueba();
+var _planBadge = (_avigoPlan === 'pro')
   ? '<span style="background:#16A34A;color:#fff;font-size:9px;font-weight:800;padding:2px 8px;border-radius:99px;margin-left:6px">PRO ⚡</span>'
+  : estaEnPrueba()
+  ? '<span style="background:#FBBF24;color:#78350F;font-size:9px;font-weight:800;padding:2px 8px;border-radius:99px;margin-left:6px">PRUEBA · '+_diasTrial+' día'+(diasRestantesPrueba()===1?'':'s')+'</span>'
   : '<span style="background:#F3F4F6;color:#9CA3AF;font-size:9px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:6px;cursor:pointer" onclick="irAPlanes()">FREE → Upgrade</span>';
 var _sesionFoto = avigoTieneSession() && _avigoSession && _avigoSession.usuario && _avigoSession.usuario.foto
   ? _avigoSession.usuario.foto : null;
@@ -3317,6 +3429,23 @@ sc+='<div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:14p
   +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:#166534;display:flex;align-items:center;gap:4px">'+_sesionInfo+_planBadge+'</div>'
   +'<div style="font-size:11px;color:#16A34A;font-weight:600">&#9679; Conectado a AviGo Cloud</div></div></div>';
 sc+='<button onclick="nav(\'planes\')" style="width:100%;padding:13px;background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:12px;color:#16A34A;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;margin-bottom:8px">'+(esPro()?'\u26A1 Mi plan Pro':'\u26A1 Mejorar a Pro')+'</button>';
+// Mostrar info de prueba o cancelar plan
+if (estaEnPrueba()) {
+  var _dLeft = diasRestantesPrueba();
+  sc+='<div style="background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:12px;padding:12px 14px;margin-bottom:8px;text-align:center">';
+  sc+='<div style="font-size:12px;font-weight:800;color:#92400E">&#9203; Prueba gratuita</div>';
+  sc+='<div style="font-size:11px;color:#B45309;margin-top:2px">Te quedan <b>'+_dLeft+' día'+(+_dLeft===1?'':'s')+'</b> de Pro gratis.</div>';
+  sc+='<button onclick="irAPlanes()" style="margin-top:8px;background:#16A34A;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit">&#9889; Activar plan Pro</button>';
+  sc+='</div>';
+} else if (tienePlanPagado()) {
+  var _pd = _getPlanData();
+  var _expiraStr = _pd.expira ? new Date(_pd.expira).toLocaleDateString('es-MX') : 'Nunca';
+  sc+='<div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:12px;padding:12px 14px;margin-bottom:8px">';
+  sc+='<div style="font-size:12px;font-weight:800;color:#166534">&#9989; Plan '+(_pd.planTipo||'Pro')+' activo</div>';
+  if (_pd.expira) sc+='<div style="font-size:11px;color:#16A34A;margin-top:2px">Renueva el: '+_expiraStr+'</div>';
+  sc+='<button onclick="_confirmarCancelarPlan()" style="margin-top:8px;background:#FEF2F2;color:#DC2626;border:1.5px solid #FECACA;border-radius:8px;padding:7px 16px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Cancelar plan</button>';
+  sc+='</div>';
+}
 sc+='<button onclick="avigoBotonLogout()" style="width:100%;padding:13px;background:#FEF2F2;border:1.5px solid #FECACA;border-radius:12px;color:#DC2626;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">Cerrar sesion</button>';
   sc+='<button id="btn-reiniciar" onclick="resetApp()" style="width:100%;padding:13px;background:#FEF2F2;border:1.5px solid #FECACA;border-radius:12px;color:#DC2626;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">🗑 Reiniciar la app</button>';
   sc+='</div>';
@@ -6185,6 +6314,60 @@ screens.planes = function() {
   return sc;
 };
 
+// Verificar si el plan expiró y mostrar pantalla de upgrade
+function verificarAccesoApp() {
+  if (!avigoTieneSession()) return;
+  if (esPro() || estaEnPrueba()) return;
+  // Verificar si tenía trial y ya venció
+  var d = _getPlanData();
+  if (d.trialStart) {
+    var diasTranscurridos = (Date.now() - parseInt(d.trialStart)) / (1000 * 60 * 60 * 24);
+    if (diasTranscurridos >= 7) {
+      _mostrarPantallaUpgrade();
+    }
+  }
+}
+
+function _cerrarUpgradeOverlay() {
+  var el = document.getElementById('avigo-upgrade-overlay');
+  if (el) el.parentNode.removeChild(el);
+}
+function _upgradeIrPlanes() { _cerrarUpgradeOverlay(); irAPlanes(); }
+function _upgradeIrPerfil() { _cerrarUpgradeOverlay(); nav('perfil'); }
+
+function _mostrarPantallaUpgrade() {
+  if (document.getElementById('avigo-upgrade-overlay')) return;
+  var ov = document.createElement('div');
+  ov.id = 'avigo-upgrade-overlay';
+  ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:#fff;z-index:99998;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center';
+  var box = document.createElement('div');
+  box.style.cssText = 'max-width:320px;width:100%';
+  var title = document.createElement('div');
+  title.style.cssText = 'font-size:56px;margin-bottom:16px';
+  title.textContent = '🔒';
+  var h = document.createElement('div');
+  h.style.cssText = 'font-size:22px;font-weight:900;color:#111827;margin-bottom:8px';
+  h.textContent = 'Tu prueba gratuita terminó';
+  var p = document.createElement('div');
+  p.style.cssText = 'font-size:14px;color:#6B7280;line-height:1.6;margin-bottom:28px';
+  p.textContent = 'Elige un plan Pro para seguir gestionando tu granja sin límites.';
+  var btn1 = document.createElement('button');
+  btn1.style.cssText = 'width:100%;padding:16px;background:#16A34A;border:none;border-radius:14px;font-size:16px;font-weight:900;color:#fff;cursor:pointer;font-family:inherit;margin-bottom:12px;display:block';
+  btn1.textContent = '⚡ Ver planes Pro';
+  btn1.onclick = _upgradeIrPlanes;
+  var btn2 = document.createElement('button');
+  btn2.style.cssText = 'width:100%;padding:14px;background:#F3F4F6;border:none;border-radius:14px;font-size:14px;font-weight:700;color:#374151;cursor:pointer;font-family:inherit;display:block';
+  btn2.textContent = 'Ver mi perfil';
+  btn2.onclick = _upgradeIrPerfil;
+  box.appendChild(title);
+  box.appendChild(h);
+  box.appendChild(p);
+  box.appendChild(btn1);
+  box.appendChild(btn2);
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+}
+
 window.addEventListener('DOMContentLoaded', function(){
   try {
     var urlParams = new URLSearchParams(window.location.search);
@@ -6199,6 +6382,11 @@ window.addEventListener('DOMContentLoaded', function(){
       }, 2000);
     }
   } catch(e) {}
+
+  // Verificar acceso después de cargar
+  setTimeout(function() {
+    if (avigoTieneSession()) verificarAccesoApp();
+  }, 1500);
 
   var yaHayDatos = cargarDeStorage();
   if(!granja.lotes)   granja.lotes  = [];
