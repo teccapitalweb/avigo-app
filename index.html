@@ -184,18 +184,19 @@ function avigoLoginGoogle(credential) {
       _avigoSession = { token: data.token, usuario: data.usuario };
       try { localStorage.setItem('avigo_session', JSON.stringify(_avigoSession)); } catch(e) {}
       LS_KEY = getStorageKey();
+      // Cargar datos del usuario actual (pueden ser de una sesión anterior)
+      cargarDeStorage();
       actualizarPlan(data.usuario.plan || 'free');
       var _nombre = data.usuario.nombre || data.usuario.email || 'usuario';
       showToast('Bienvenido, ' + _nombre + '!');
 
-      // Verificar si el usuario tiene granja configurada
-      var _tieneGranjaLocal = !_esUsuarioDiferente && granja.lotes && granja.lotes.length > 0 &&
+      // Verificar si este usuario ya tiene granja configurada en este dispositivo
+      var _tieneGranjaLocal = granja.lotes && granja.lotes.length > 0 &&
         granja.lotes[0] && granja.lotes[0].granjaData &&
         granja.lotes[0].granjaData.numAves > 0;
 
-      // Si es nuevo, usuario diferente, o no tiene granja local → onboarding
-      if (data.usuario.esNuevo || _esUsuarioDiferente || !_tieneGranjaLocal) {
-        iniciarPruebaGratuita();
+      // Solo ir al onboarding si es usuario completamente nuevo sin datos
+      if (data.usuario.esNuevo || !_tieneGranjaLocal) {
         setTimeout(inicializarPush, 2000);
         nav('ob1');
         return;
@@ -3513,16 +3514,17 @@ function avigoLoginEmail() {
       _avigoSession = { token: res.data.token, usuario: res.data.usuario };
       try { localStorage.setItem('avigo_session', JSON.stringify(_avigoSession)); } catch(e) {}
       LS_KEY = getStorageKey();
+      // Cargar datos del usuario actual
+      cargarDeStorage();
       actualizarPlan(res.data.usuario.plan || 'free');
       showToast('Bienvenido, ' + (res.data.usuario.nombre || res.data.usuario.email) + '!');
-      var _tieneGranjaLocal = !_distinto && granja.lotes && granja.lotes.length > 0 &&
+      var _tieneGranjaLocal = granja.lotes && granja.lotes.length > 0 &&
         granja.lotes[0] && granja.lotes[0].granjaData && granja.lotes[0].granjaData.numAves > 0;
       if (_tieneGranjaLocal) {
         setTimeout(function(){ avigoSyncGranja(granja); }, 2000);
         setTimeout(inicializarPush, 2000);
         nav('dash');
       } else {
-        iniciarPruebaGratuita();
         avigoCargarDatos();
       }
     } else {
