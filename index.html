@@ -183,19 +183,32 @@ function avigoLoginGoogle(credential) {
 
       _avigoSession = { token: data.token, usuario: data.usuario };
       try { localStorage.setItem('avigo_session', JSON.stringify(_avigoSession)); } catch(e) {}
-      LS_KEY = getStorageKey();
-      // Cargar datos del usuario actual (pueden ser de una sesión anterior)
+      // Actualizar LS_KEY con el ID del nuevo usuario
+      LS_KEY = 'avigo_v1_' + data.usuario.id;
+
+      // Limpiar memoria RAM antes de cargar datos del nuevo usuario
+      historial = []; alertas = [];
+      granja = {
+        nombre:'', estado:'', municipio:'', altitud:0, galpones:1,
+        raza:RAZAS[0], sistema:'jaula', numAves:0, semanaVida:0,
+        etapa:null, fechaInicio:null, precioKgAl:0, avesVivas:0,
+        precioHuevo:0, kgBulto:40, inventarioKg:0, bultosCompra:0,
+        tempHoy:22, climaLat:null, climaLon:null, notifActiva:false,
+        notifHora:'07:00', vacunas:[], recordatorios:{}, lotes:[],
+        loteActivo:0, clientesJaula:[], traspatio:{},
+      };
+
+      // Ahora cargar los datos guardados del nuevo usuario
       cargarDeStorage();
       actualizarPlan(data.usuario.plan || 'free');
       var _nombre = data.usuario.nombre || data.usuario.email || 'usuario';
       showToast('Bienvenido, ' + _nombre + '!');
 
-      // Verificar si este usuario ya tiene granja configurada en este dispositivo
+      // Verificar si este usuario ya tiene granja en este dispositivo
       var _tieneGranjaLocal = granja.lotes && granja.lotes.length > 0 &&
         granja.lotes[0] && granja.lotes[0].granjaData &&
         granja.lotes[0].granjaData.numAves > 0;
 
-      // Solo ir al onboarding si es usuario completamente nuevo sin datos
       if (data.usuario.esNuevo || !_tieneGranjaLocal) {
         setTimeout(inicializarPush, 2000);
         nav('ob1');
@@ -3513,8 +3526,22 @@ function avigoLoginEmail() {
       try { localStorage.setItem('avigo_ultimo_usuario', res.data.usuario.id); } catch(e) {}
       _avigoSession = { token: res.data.token, usuario: res.data.usuario };
       try { localStorage.setItem('avigo_session', JSON.stringify(_avigoSession)); } catch(e) {}
-      LS_KEY = getStorageKey();
-      // Cargar datos del usuario actual
+      // Actualizar LS_KEY con el ID del nuevo usuario
+      LS_KEY = 'avigo_v1_' + res.data.usuario.id;
+
+      // Limpiar memoria RAM antes de cargar datos del nuevo usuario
+      historial = []; alertas = [];
+      granja = {
+        nombre:'', estado:'', municipio:'', altitud:0, galpones:1,
+        raza:RAZAS[0], sistema:'jaula', numAves:0, semanaVida:0,
+        etapa:null, fechaInicio:null, precioKgAl:0, avesVivas:0,
+        precioHuevo:0, kgBulto:40, inventarioKg:0, bultosCompra:0,
+        tempHoy:22, climaLat:null, climaLon:null, notifActiva:false,
+        notifHora:'07:00', vacunas:[], recordatorios:{}, lotes:[],
+        loteActivo:0, clientesJaula:[], traspatio:{},
+      };
+
+      // Cargar datos guardados del nuevo usuario
       cargarDeStorage();
       actualizarPlan(res.data.usuario.plan || 'free');
       showToast('Bienvenido, ' + (res.data.usuario.nombre || res.data.usuario.email) + '!');
