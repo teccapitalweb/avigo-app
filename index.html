@@ -229,6 +229,14 @@ function avigoLoginGoogle(credential) {
 }
 
 function avigoLogout() {
+  // Guardar el ID del último usuario para que LS_KEY lo use al recargar
+  try {
+    if (_avigoSession && _avigoSession.usuario && _avigoSession.usuario.id) {
+      LS_KEY = 'avigo_v1_' + _avigoSession.usuario.id;
+      // Guardar datos actuales con la clave correcta antes de cerrar
+      guardarEnStorage();
+    }
+  } catch(e) {}
   _avigoSession = null;
   try { localStorage.removeItem('avigo_session'); } catch(e) {}
   try {
