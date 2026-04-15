@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Eliminar Cuenta — AviGo</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:#F0FDF4;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+.card{background:#fff;border-radius:24px;padding:40px;max-width:560px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.08);}
+.logo{display:flex;align-items:center;gap:12px;margin-bottom:32px;}
+.logo-icon{width:48px;height:48px;background:#16A34A;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;}
+.logo-text{font-size:22px;font-weight:800;color:#14532D;}
+h1{font-size:24px;font-weight:800;color:#111827;margin-bottom:8px;}
+.subtitle{font-size:15px;color:#6B7280;line-height:1.6;margin-bottom:32px;}
+.warn{background:#FEF2F2;border:1px solid #FECACA;border-radius:14px;padding:16px 20px;margin-bottom:28px;display:flex;gap:12px;align-items:flex-start;}
+.warn-icon{font-size:20px;flex-shrink:0;}
+.warn-text{font-size:13px;color:#DC2626;line-height:1.5;font-weight:500;}
+.steps{display:flex;flex-direction:column;gap:16px;margin-bottom:32px;}
+.step{display:flex;gap:14px;align-items:flex-start;}
+.step-num{width:28px;height:28px;border-radius:50%;background:#16A34A;color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.step-body h3{font-size:14px;font-weight:700;color:#111827;margin-bottom:2px;}
+.step-body p{font-size:13px;color:#6B7280;line-height:1.5;}
+.divider{height:1px;background:#F3F4F6;margin:24px 0;}
+.contact{font-size:13px;color:#6B7280;line-height:1.6;}
+.contact a{color:#16A34A;font-weight:600;text-decoration:none;}
+.btn{display:inline-block;background:#DC2626;color:#fff;padding:14px 28px;border-radius:12px;font-size:14px;font-weight:700;text-decoration:none;margin-top:8px;}
+footer{margin-top:32px;font-size:11px;color:#9CA3AF;text-align:center;}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="logo-icon">🐔</div>
+    <div class="logo-text">AviGo</div>
+  </div>
+
+  <h1>Eliminar mi cuenta</h1>
+  <p class="subtitle">Puedes solicitar la eliminación permanente de tu cuenta y todos tus datos de AviGo. Esta acción es irreversible.</p>
+
+  <div class="warn">
+    <div class="warn-icon">⚠️</div>
+    <div class="warn-text">Al eliminar tu cuenta se borrarán permanentemente todos tus registros de producción, configuración de granja, historial y datos personales. Esta acción no se puede deshacer.</div>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h3>Desde la app</h3>
+        <p>Abre AviGo → Perfil → Configuración → "Eliminar mi cuenta" → Confirma con tu contraseña.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h3>Por correo electrónico</h3>
+        <p>Envía un correo a <strong>ipcilinstituto@ipcil.org</strong> con el asunto "Eliminar cuenta AviGo" desde el email con el que te registraste.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h3>Tiempo de procesamiento</h3>
+        <p>Tu cuenta será eliminada en un plazo máximo de <strong>30 días hábiles</strong> a partir de tu solicitud.</p>
+      </div>
+    </div>
+  </div>
+
+  <a href="mailto:ipcilinstituto@ipcil.org?subject=Eliminar%20cuenta%20AviGo&body=Hola,%20solicito%20la%20eliminaci%C3%B3n%20de%20mi%20cuenta%20de%20AviGo." class="btn">Solicitar eliminación por email</a>
+
+  <div class="divider"></div>
+
+  <div class="contact">
+    <strong>¿Tienes dudas?</strong><br/>
+    Contáctanos en <a href="mailto:ipcilinstituto@ipcil.org">ipcilinstituto@ipcil.org</a><br/>
+    TEC CAPITAL · Tehuacán, Puebla, México
+  </div>
+
+  <footer>AviGo — TEC CAPITAL © 2026 · <a href="privacidad.html" style="color:#16A34A;">Política de Privacidad</a></footer>
+</div>
+</body>
+</html>

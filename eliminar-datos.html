@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Eliminar Datos — AviGo</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:#F0FDF4;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+.card{background:#fff;border-radius:24px;padding:40px;max-width:560px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.08);}
+.logo{display:flex;align-items:center;gap:12px;margin-bottom:32px;}
+.logo-icon{width:48px;height:48px;background:#16A34A;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;}
+.logo-text{font-size:22px;font-weight:800;color:#14532D;}
+h1{font-size:24px;font-weight:800;color:#111827;margin-bottom:8px;}
+.subtitle{font-size:15px;color:#6B7280;line-height:1.6;margin-bottom:32px;}
+.data-types{display:flex;flex-direction:column;gap:10px;margin-bottom:28px;}
+.data-item{display:flex;align-items:center;gap:12px;padding:12px 16px;background:#F9FAFB;border-radius:12px;border:1px solid #F3F4F6;}
+.data-icon{font-size:18px;flex-shrink:0;}
+.data-info h3{font-size:13px;font-weight:700;color:#111827;}
+.data-info p{font-size:12px;color:#6B7280;margin-top:1px;}
+.data-tag{margin-left:auto;font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;}
+.tag-red{background:#FEF2F2;color:#DC2626;}
+.tag-green{background:#F0FDF4;color:#16A34A;}
+.steps{display:flex;flex-direction:column;gap:16px;margin-bottom:32px;}
+.step{display:flex;gap:14px;align-items:flex-start;}
+.step-num{width:28px;height:28px;border-radius:50%;background:#16A34A;color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.step-body h3{font-size:14px;font-weight:700;color:#111827;margin-bottom:2px;}
+.step-body p{font-size:13px;color:#6B7280;line-height:1.5;}
+.divider{height:1px;background:#F3F4F6;margin:24px 0;}
+.contact a{color:#16A34A;font-weight:600;text-decoration:none;}
+.contact{font-size:13px;color:#6B7280;line-height:1.6;}
+.btn{display:inline-block;background:#16A34A;color:#fff;padding:14px 28px;border-radius:12px;font-size:14px;font-weight:700;text-decoration:none;margin-top:8px;}
+footer{margin-top:32px;font-size:11px;color:#9CA3AF;text-align:center;}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="logo-icon">🐔</div>
+    <div class="logo-text">AviGo</div>
+  </div>
+
+  <h1>Eliminar mis datos</h1>
+  <p class="subtitle">Tienes derecho a solicitar la eliminación de tus datos personales almacenados en AviGo, de acuerdo con nuestra Política de Privacidad.</p>
+
+  <div class="data-types">
+    <div class="data-item">
+      <div class="data-icon">👤</div>
+      <div class="data-info">
+        <h3>Datos personales</h3>
+        <p>Nombre, email, foto de perfil</p>
+      </div>
+      <div class="data-tag tag-red">Se elimina</div>
+    </div>
+    <div class="data-item">
+      <div class="data-icon">🐔</div>
+      <div class="data-info">
+        <h3>Datos de granja</h3>
+        <p>Registros, lotes, configuración</p>
+      </div>
+      <div class="data-tag tag-red">Se elimina</div>
+    </div>
+    <div class="data-item">
+      <div class="data-icon">📊</div>
+      <div class="data-info">
+        <h3>Historial de producción</h3>
+        <p>Registros diarios y métricas</p>
+      </div>
+      <div class="data-tag tag-red">Se elimina</div>
+    </div>
+    <div class="data-item">
+      <div class="data-icon">📦</div>
+      <div class="data-info">
+        <h3>Datos anónimos agregados</h3>
+        <p>Estadísticas sin identificación</p>
+      </div>
+      <div class="data-tag tag-green">Se conserva</div>
+    </div>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h3>Solicita por email</h3>
+        <p>Envía tu solicitud a <strong>ipcilinstituto@ipcil.org</strong> con el asunto "Eliminar datos AviGo" desde tu email registrado.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h3>Verificamos tu identidad</h3>
+        <p>Confirmaremos que eres el titular de la cuenta en un plazo de 5 días hábiles.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h3>Eliminación completada</h3>
+        <p>Tus datos serán eliminados permanentemente en un máximo de <strong>30 días hábiles</strong> y recibirás confirmación por email.</p>
+      </div>
+    </div>
+  </div>
+
+  <a href="mailto:ipcilinstituto@ipcil.org?subject=Eliminar%20datos%20AviGo&body=Hola,%20solicito%20la%20eliminaci%C3%B3n%20de%20mis%20datos%20personales%20de%20AviGo." class="btn">Solicitar eliminación de datos</a>
+
+  <div class="divider"></div>
+
+  <div class="contact">
+    <strong>¿Tienes dudas?</strong><br/>
+    Contáctanos en <a href="mailto:ipcilinstituto@ipcil.org">ipcilinstituto@ipcil.org</a><br/>
+    TEC CAPITAL · Tehuacán, Puebla, México
+  </div>
+
+  <footer>AviGo — TEC CAPITAL © 2026 · <a href="privacidad.html" style="color:#16A34A;">Política de Privacidad</a></footer>
+</div>
+</body>
+</html>
