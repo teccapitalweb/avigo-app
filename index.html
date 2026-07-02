@@ -134,7 +134,6 @@ function probarNotificacion() {
 var _avigoSession = null;
 
 var _avigoPlan = 'free';
-var _MP_PUBLIC_KEY_TEST = 'APP_USR-e5cec480-cef6-4327-8ac2-46707b792831';
 
 // ── SISTEMA DE PLAN COMPLETO ─────────────────────────────────
 
@@ -149,58 +148,56 @@ function _setPlanData(data) {
   try { localStorage.setItem('avigo_plan_data', JSON.stringify(data)); } catch(e) {}
 }
 
+// ── VERDAD DEL PLAN: el servidor (/auth/me → planInfo) ───────
+// 'avigo_plan_info' en localStorage es solo CACHÉ para operar
+// offline con el último valor conocido.
+
+function _getPlanInfo() {
+  try { return JSON.parse(localStorage.getItem('avigo_plan_info') || 'null'); } catch(e) { return null; }
+}
+
+function _setPlanInfo(info) {
+  try { localStorage.setItem('avigo_plan_info', JSON.stringify(info)); } catch(e) {}
+}
+
+function avigoRefrescarPlanInfo(cb) {
+  if (!avigoTieneSession()) { if (cb) cb(null); return; }
+  fetch(AVIGO_API + '/auth/me', { headers: avigoHeaders() })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data && data.planInfo) _setPlanInfo(data.planInfo);
+    if (cb) cb((data && data.planInfo) || null);
+  })
+  .catch(function() { if (cb) cb(null); }); // offline: se conserva el caché
+}
+
 function esPro() {
-  if (_avigoPlan === 'pro') {
-    // Verificar si el plan pagado no ha expirado
-    var d = _getPlanData();
-    if (d.expira && new Date(d.expira) < new Date()) {
-      // Plan expirado — desactivar
-      _avigoPlan = 'free';
-      try { localStorage.setItem('avigo_plan', 'free'); } catch(e) {}
-      return false;
-    }
-    return true;
-  }
-  // Verificar prueba gratuita de 7 días
-  var d = _getPlanData();
-  if (d.trialStart) {
-    var diasTranscurridos = (Date.now() - parseInt(d.trialStart)) / (1000 * 60 * 60 * 24);
-    if (diasTranscurridos < 7) return true;
-  }
-  return false;
+  var info = _getPlanInfo();
+  if (!info || info.plan !== 'pro') return false;
+  if (info.expira && new Date(info.expira) < new Date()) return false;
+  return true;
 }
 
 function estaEnPrueba() {
-  if (_avigoPlan === 'pro') return false;
-  var d = _getPlanData();
-  if (d.trialStart) {
-    var diasTranscurridos = (Date.now() - parseInt(d.trialStart)) / (1000 * 60 * 60 * 24);
-    return diasTranscurridos < 7;
-  }
-  return false;
+  var info = _getPlanInfo();
+  if (!info || !info.enTrial) return false;
+  if (info.expira && new Date(info.expira) < new Date()) return false;
+  return true;
 }
 
 function diasRestantesPrueba() {
-  var d = _getPlanData();
-  if (d.trialStart) {
-    var diasTranscurridos = (Date.now() - parseInt(d.trialStart)) / (1000 * 60 * 60 * 24);
-    var restantes = Math.ceil(7 - diasTranscurridos);
+  var info = _getPlanInfo();
+  if (!info || !info.enTrial) return 0;
+  if (info.expira) {
+    var restantes = Math.ceil((new Date(info.expira) - Date.now()) / (1000 * 60 * 60 * 24));
     return restantes > 0 ? restantes : 0;
   }
-  return 0;
-}
-
-function iniciarPruebaGratuita() {
-  var d = _getPlanData();
-  if (!d.trialStart) {
-    d.trialStart = Date.now().toString();
-    _setPlanData(d);
-  }
+  return info.trialDiasRestantes || 0;
 }
 
 function tienePlanPagado() {
-  var d = _getPlanData();
-  return d.planTipo && _avigoPlan === 'pro';
+  var info = _getPlanInfo();
+  return !!(info && info.plan === 'pro' && !info.enTrial);
 }
 
 function _confirmarCancelarPlan() {
@@ -220,49 +217,22 @@ function _confirmarCancelarPlan() {
 }
 
 function cancelarPlan() {
-  var d = _getPlanData();
-  d.cancelado = true;
-  d.expira = new Date().toISOString(); // expira ahora
-  _setPlanData(d);
-  _avigoPlan = 'free';
-  try { localStorage.setItem('avigo_plan', 'free'); } catch(e) {}
+  // La cancelación real es del servidor (fase posterior). Aquí solo UI:
+  // el plan efectivo no cambia hasta que /auth/me lo diga.
   showToast('Plan cancelado. Seguirás con el plan gratuito.');
+  avigoRefrescarPlanInfo();
   nav('dash');
 }
 
-function actualizarPlan(plan, planTipo, expira) {
-  _avigoPlan = plan || 'free';
-  try { localStorage.setItem('avigo_plan', _avigoPlan); } catch(e) {}
-  if (plan === 'pro' && planTipo) {
-    var d = _getPlanData();
-    d.planTipo = planTipo;
-    d.activadoEn = new Date().toISOString();
-    d.cancelado = false;
-    if (expira) {
-      d.expira = expira;
-    } else if (planTipo === 'mensual') {
-      d.expira = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    } else if (planTipo === 'anual') {
-      d.expira = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-    } else if (planTipo === 'vitalicio') {
-      d.expira = null; // nunca expira
-    }
-    _setPlanData(d);
-  }
+function actualizarPlan() {
+  // Neutralizada: el plan efectivo solo lo dicta el servidor.
+  // Cualquier llamada (incluida consola) solo re-sincroniza la verdad.
+  avigoRefrescarPlanInfo();
 }
 
 function cargarPlanGuardado() {
-  try {
-    var p = localStorage.getItem('avigo_plan');
-    if (p) _avigoPlan = p;
-    // Iniciar prueba gratuita si es la primera vez
-    if (_avigoPlan !== 'pro') {
-      var d = _getPlanData();
-      if (!d.trialStart) {
-        iniciarPruebaGratuita();
-      }
-    }
-  } catch(e) {}
+  // El plan se refresca desde /auth/me al arrancar; el trial vive en
+  // el servidor y ya no se inicia ni se lee nada local aquí.
 } // { token, usuario }
 
 try {
@@ -450,6 +420,15 @@ window.addEventListener('online', function() {
   }, 3000);
 });
 
+var _limitePlanAvisado = false;
+function _avisarLimitePlan() {
+  // El backend rechazó crear una granja nueva por límite del plan.
+  // Aviso una sola vez por sesión con el modal de upgrade existente.
+  if (_limitePlanAvisado) return;
+  _limitePlanAvisado = true;
+  if (typeof mostrarBloqueoProLote === 'function') mostrarBloqueoProLote();
+}
+
 function avigoSyncGranja(granjaData) {
   if (!avigoTieneSession()) return;
   fetch(AVIGO_API + '/sync', {
@@ -465,6 +444,7 @@ function avigoSyncGranja(granjaData) {
     if (data && data.resultados && granja.lotes && granja.lotes.length > 0) {
       var huboCambio = false;
       data.resultados.forEach(function(res) {
+        if (res && res.status === 'limite') { _avisarLimitePlan(); return; }
         if (!res || res.status !== 'ok' || !res.granjaId) return;
         granja.lotes.forEach(function(l) {
           // Match por nombre: resultados[] no es paralelo a lotes[] (el
@@ -546,6 +526,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function(){ nav('reset'); }, 500);
   }
   setTimeout(avigoRenovarTokenSiNecesario, 3000);
+  setTimeout(avigoRefrescarPlanInfo, 1500);
   setTimeout(function() {
     if (navigator.onLine && typeof avigoFlushSyncCola === 'function') {
       avigoFlushSyncCola();
@@ -3435,7 +3416,7 @@ var _sesionInfo = avigoTieneSession() && _avigoSession && _avigoSession.usuario
   ? _avigoSession.usuario.nombre || _avigoSession.usuario.email
   : 'Sin sesion';
 var _diasTrial = diasRestantesPrueba();
-var _planBadge = (_avigoPlan === 'pro')
+var _planBadge = tienePlanPagado()
   ? '<span style="background:#16A34A;color:#fff;font-size:9px;font-weight:800;padding:2px 8px;border-radius:99px;margin-left:6px">PRO ⚡</span>'
   : estaEnPrueba()
   ? '<span style="background:#FBBF24;color:#78350F;font-size:9px;font-weight:800;padding:2px 8px;border-radius:99px;margin-left:6px">PRUEBA · '+_diasTrial+' día'+(diasRestantesPrueba()===1?'':'s')+'</span>'
@@ -3456,7 +3437,8 @@ if (estaEnPrueba()) {
   sc+='<button onclick="irAPlanes()" style="margin-top:8px;background:#16A34A;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit">&#9889; Activar plan Pro</button>';
   sc+='</div>';
 } else if (tienePlanPagado()) {
-  var _pd = _getPlanData();
+  var _pi = _getPlanInfo() || {};
+  var _pd = { expira: _pi.expira, planTipo: _pi.tipo };
   var _expiraStr = _pd.expira ? new Date(_pd.expira).toLocaleDateString('es-MX') : 'Nunca';
   sc+='<div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:12px;padding:12px 14px;margin-bottom:8px">';
   sc+='<div style="font-size:12px;font-weight:800;color:#166534">&#9989; Plan '+(_pd.planTipo||'Pro')+' activo</div>';
@@ -6078,132 +6060,14 @@ function iniciarPago(tipo) {
   });
 }
 
-function avigoActivarPlan(tipo) {
-  actualizarPlan('pro');
-  showToast('🎉 ¡Plan Pro activado! Bienvenido.');
-  setTimeout(function() { nav('dash'); }, 500);
-}
-
-function _mostrarCheckoutBricks(preferenceId, plan, tipo) {
-  var ov = document.createElement('div');
-  ov.id = 'mp-checkout-overlay';
-  ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:#fff;z-index:99999;display:flex;flex-direction:column;overflow:hidden';
-
-  ov.innerHTML = '<div style="background:#16A34A;padding:14px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0">'
-    + '<button id="btn-cerrar-mp" style="background:rgba(255,255,255,.2);border:none;border-radius:10px;padding:8px;cursor:pointer;display:flex;align-items:center">'
-    + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>'
-    + '<div style="flex:1">'
-    + '<div style="font-size:15px;font-weight:900;color:#fff">' + plan.label + '</div>'
-    + '<div style="font-size:12px;color:rgba(255,255,255,.8)">$' + plan.monto + ' MXN · Pago seguro</div>'
-    + '</div>'
-    + '<img src="https://http2.mlstatic.com/frontend-assets/mp-web-navigation/ui-navigation/5.21.22/mercadopago/logo__large@2x.png" style="height:20px;opacity:.9" onerror="this.style.display=&quot;none&quot;">'
-    + '</div>'
-    + '<div style="flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch">'
-    + '<div id="mp-loading" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;gap:12px">'
-    + '<div style="width:32px;height:32px;border:3px solid #BBF7D0;border-top-color:#16A34A;border-radius:50%;animation:spin .7s linear infinite"></div>'
-    + '<div style="font-size:13px;color:#6B7280;font-weight:500">Cargando formulario seguro...</div>'
-    + '</div>'
-    + '<div id="mp-brick-container"></div>'
-    + '</div>';
-
-  document.body.appendChild(ov);
-
-  document.getElementById('btn-cerrar-mp').onclick = function() {
-    document.body.removeChild(ov);
-  };
-
-  function _iniciarBrick() {
-    var mp = new MercadoPago(_MP_PUBLIC_KEY_TEST, { locale: 'es-MX' });
-    var bricksBuilder = mp.bricks();
-    bricksBuilder.create('cardPayment', 'mp-brick-container', {
-      initialization: {
-        amount: plan.monto
-      },
-      customization: {
-        visual: {
-          style: {
-            theme: 'default',
-            customVariables: {
-              baseColor: '#16A34A',
-              baseColorFirstVariant: '#15803D',
-              baseColorSecondVariant: '#14532D'
-            }
-          }
-        },
-        paymentMethods: { minInstallments: 1, maxInstallments: 1 }
-      },
-      callbacks: {
-        onReady: function() {
-          var spinner = document.getElementById('mp-loading');
-          if (spinner) spinner.style.display = 'none';
-        },
-        onSubmit: function(cardFormData) {
-          showToast('Procesando pago...');
-          return fetch(AVIGO_API + '/pagos/procesar', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer ' + _avigoSession.token
-            },
-            body: JSON.stringify({
-              tipo: tipo,
-              monto: plan.monto,
-              descripcion: plan.label,
-              formData: cardFormData
-            })
-          })
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            if (data.status === 'approved') {
-              var ov = document.getElementById('mp-checkout-overlay');
-              if (ov) document.body.removeChild(ov);
-              actualizarPlan('pro');
-              showToast('🎉 ¡Plan Pro activado! Bienvenido.');
-              nav('dash');
-            } else if (data.status === 'in_process' || data.status === 'pending') {
-              var ov = document.getElementById('mp-checkout-overlay');
-              if (ov) document.body.removeChild(ov);
-              showToast('⏳ Pago en proceso. Te avisaremos cuando se confirme.');
-            } else {
-              showToast('Pago rechazado. Verifica tu tarjeta e intenta de nuevo.');
-            }
-          })
-          .catch(function() {
-            showToast('Error al procesar el pago. Intenta de nuevo.');
-          });
-        },
-        onError: function(error) {
-          console.error('MP Brick error:', error);
-        }
-      }
-    });
-  }
-
-  if (typeof MercadoPago !== 'undefined') {
-    _iniciarBrick();
-  } else {
-    var script = document.createElement('script');
-    script.src = 'https://sdk.mercadopago.com/js/v2';
-    script.onload = _iniciarBrick;
-    document.head.appendChild(script);
-  }
-}
-
 function verificarPago() {
   if (!avigoTieneSession()) return;
-  fetch(AVIGO_API + '/pagos/verificar', {
-    headers: { 'Authorization': 'Bearer ' + _avigoSession.token }
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    if (data.plan === 'pro' && !esPro()) {
-      actualizarPlan('pro');
+  var eraPro = esPro();
+  avigoRefrescarPlanInfo(function(info) {
+    if (info && info.plan === 'pro' && !info.enTrial && !eraPro) {
       _mostrarBienvenidaPro();
-    } else if (data.plan) {
-      actualizarPlan(data.plan);
     }
-  })
-  .catch(function() {});
+  });
 }
 
 function _mostrarBienvenidaPro() {
@@ -6336,13 +6200,11 @@ screens.planes = function() {
 function verificarAccesoApp() {
   if (!avigoTieneSession()) return;
   if (esPro() || estaEnPrueba()) return;
-  // Verificar si tenía trial y ya venció
-  var d = _getPlanData();
-  if (d.trialStart) {
-    var diasTranscurridos = (Date.now() - parseInt(d.trialStart)) / (1000 * 60 * 60 * 24);
-    if (diasTranscurridos >= 7) {
-      _mostrarPantallaUpgrade();
-    }
+  // Sin pro ni trial vigente según la verdad cacheada del servidor
+  // → el trial terminó. Sin caché (primer arranque) no se bloquea.
+  var info = _getPlanInfo();
+  if (info) {
+    _mostrarPantallaUpgrade();
   }
 }
 
@@ -8243,6 +8105,8 @@ function toggleRec2(id){
       method: 'POST',
       headers: avigoHeaders(),
       body: JSON.stringify({ recordatorios: recsArray })
+    }).then(function(r) {
+      if (r && r.status === 403) mostrarBloqueoProGeneral('Notificaciones y recordatorios');
     }).catch(function() {});
   }
 
@@ -8262,7 +8126,8 @@ function sincronizarRecordatorios() {
     method: 'POST',
     headers: avigoHeaders(),
     body: JSON.stringify({ recordatorios: recsArray })
-  }).then(function() {
+  }).then(function(r) {
+    if (r && r.status === 403) mostrarBloqueoProGeneral('Notificaciones y recordatorios');
   }).catch(function() {});
 }
 
