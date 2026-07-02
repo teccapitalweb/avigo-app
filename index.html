@@ -462,7 +462,24 @@ function avigoSyncGranja(granjaData) {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    if (data.resultados) {
+    if (data && data.resultados && granja.lotes && granja.lotes.length > 0) {
+      var huboCambio = false;
+      data.resultados.forEach(function(res) {
+        if (!res || res.status !== 'ok' || !res.granjaId) return;
+        granja.lotes.forEach(function(l) {
+          // Match por nombre: resultados[] no es paralelo a lotes[] (el
+          // backend salta lotes sin nombre) y el nombre es la llave
+          // natural única por usuario en el backend
+          if (l && l.granjaData && l.granjaData.nombre === res.granja) {
+            if (l.syncId !== res.granjaId || l.granjaData._backendId !== res.granjaId) {
+              l.syncId = res.granjaId;
+              l.granjaData._backendId = res.granjaId;
+              huboCambio = true;
+            }
+          }
+        });
+      });
+      if (huboCambio && typeof guardarEnStorage === 'function') guardarEnStorage();
     }
   })
   .catch(function() { /* silencioso en offline */ });
@@ -2632,6 +2649,7 @@ function guardarEnStorage(){
         return {
           id:           l.id || Date.now(),
           nombre:       l.nombre || 'Lote',
+          syncId:       l.syncId || null,
           granjaData:   l.granjaData || {},
           historial:    l.historial  || [],
           alertas:      l.alertas    || [],
