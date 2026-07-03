@@ -1,0 +1,39 @@
+{
+  "name": "AviGo",
+  "short_name": "AviGo",
+  "description": "Gestión avícola profesional",
+  "id": "/avigo-app/",
+  "start_url": "/avigo-app/",
+  "scope": "/avigo-app/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#16A34A",
+  "background_color": "#F0FDF4",
+  "lang": "es-MX",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
