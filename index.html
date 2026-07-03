@@ -4,7 +4,6 @@
 <meta charset="UTF-8"/>
 <link rel="preconnect" href="https://avigo-backend-production.up.railway.app">
 <link rel="preconnect" href="https://api.open-meteo.com">
-<link rel="dns-prefetch" href="https://sdk.mercadopago.com">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
 <title>AviGo — Gestión Avícola</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -6020,7 +6019,7 @@ function mostrarBloqueoProGeneral(funcion) {
 })();
 
 
-var _MP_PRECIOS = {
+var _PLANES_PRECIOS = {
   mensual:  { monto: 79,    label: 'AviGo Pro Mensual',  periodo: 'mensual' },
   anual:    { monto: 649,   label: 'AviGo Pro Anual',    periodo: 'anual'   },
   vitalicio:{ monto: 1199,  label: 'AviGo Pro Vitalicio',periodo: 'unico'   }
@@ -6028,7 +6027,7 @@ var _MP_PRECIOS = {
 
 function iniciarPago(tipo) {
   if (!avigoTieneSession()) { nav('splash'); return; }
-  var plan = _MP_PRECIOS[tipo];
+  var plan = _PLANES_PRECIOS[tipo];
   if (!plan) return;
 
   showToast('Preparando pago seguro...');
@@ -6189,7 +6188,7 @@ screens.planes = function() {
     sc += '<div style="font-size:10px;color:rgba(255,255,255,.5)">MXN \u00fanico</div></div>';
     sc += '</div></div>';
 
-    sc += '<div style="font-size:10px;color:#9CA3AF;text-align:center;line-height:1.6">Pago seguro con MercadoPago &middot; Acepta tarjetas, OXXO y transferencia</div>';
+    sc += '<div style="font-size:10px;color:#9CA3AF;text-align:center;line-height:1.6">Pago seguro con Stripe &middot; Tarjeta de cr&eacute;dito o d&eacute;bito</div>';
   }
 
   sc += '</div></div>';
