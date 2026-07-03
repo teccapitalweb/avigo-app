@@ -4566,7 +4566,6 @@ screens.alertas_screen = function(){ return screens.dash(); };
   // registra la misma URL, así que ambas llamadas comparten registro.
   navigator.serviceWorker.register('sw.js')
     .catch(function(e){ console.log('[AviGo] SW no disponible:', e.message); });
-  window.addEventListener('beforeinstallprompt',function(e){ e.preventDefault(); window._pwaPrompt=e; });
 })();
 
 if(granja.inventarioKg   === undefined) granja.inventarioKg   = 0;
