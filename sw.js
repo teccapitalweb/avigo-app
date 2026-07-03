@@ -86,8 +86,13 @@ self.addEventListener('fetch', function(event) {
   // Navegación e index: network-first con timeout y re-cacheo.
   // La red manda — cada deploy llega al usuario; el caché es solo
   // el plan B cuando no hay conexión o la red se arrastra.
+  // En navegaciones se revalida siempre (no-cache) para saltar el
+  // max-age=600 de Pages: un 304 barato a cambio de deploys al instante.
+  var fetchReq = req.mode === 'navigate'
+    ? new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' })
+    : req;
   event.respondWith(
-    fetchConTimeout(req, TIMEOUT_RED_MS).then(function(res) {
+    fetchConTimeout(fetchReq, TIMEOUT_RED_MS).then(function(res) {
       if (res && res.status === 200) {
         var copia = res.clone();
         caches.open(CACHE_NAME).then(function(c) { c.put(req, copia); });
