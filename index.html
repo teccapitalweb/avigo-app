@@ -6033,15 +6033,15 @@ function iniciarPago(tipo) {
 
   showToast('Preparando pago seguro...');
 
-  fetch(AVIGO_API + '/pagos/crear-preferencia', {
+  fetch(AVIGO_API + '/pagos/stripe/checkout-session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _avigoSession.token },
-    body: JSON.stringify({ tipo: tipo, monto: plan.monto, descripcion: plan.label })
+    body: JSON.stringify({ tipo: tipo })
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    if (data.sandbox_init_point || data.init_point) {
-      var url = data.init_point || data.sandbox_init_point;
+    if (data.url) {
+      var url = data.url;
       if (typeof window.ReactNativeWebView !== 'undefined') {
         window.ReactNativeWebView.postMessage(JSON.stringify({
           type: 'ABRIR_PAGO',
