@@ -724,6 +724,30 @@ window.addEventListener('message', function(event) {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
+  // Retorno del login de Google (same-tab redirect): Google regresa a la
+  // app con #id_token=... en el fragment. Se extrae, se limpia la URL y
+  // se hace el login normal; la firma/audiencia la valida el backend.
+  var _hashGoogle = window.location.hash || '';
+  if (_hashGoogle.indexOf('id_token=') >= 0) {
+    var _idToken = null;
+    _hashGoogle.replace(/^#/, '').split('&').forEach(function(p) {
+      if (p.indexOf('id_token=') === 0) _idToken = decodeURIComponent(p.slice(9));
+    });
+    try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch(e) {}
+    // Anti-replay: si guardamos nonce al iniciar, debe coincidir con el del token.
+    try {
+      var _nonceGuardado = sessionStorage.getItem('avigo_google_nonce');
+      sessionStorage.removeItem('avigo_google_nonce');
+      if (_idToken && _nonceGuardado) {
+        var _payload = JSON.parse(atob(_idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+        if (_payload.nonce && _payload.nonce !== _nonceGuardado) _idToken = null;
+      }
+    } catch(e) { /* si el payload no parsea, el backend rechazará el token */ }
+    if (_idToken) {
+      showToast('Verificando cuenta de Google...');
+      avigoLoginGoogle(_idToken);
+    }
+  }
   var urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('reset')) {
     setTimeout(function(){ nav('reset'); }, 500);
@@ -3996,10 +4020,14 @@ function avigoIniciarGoogle() {
     return;
   }
 
-  var w = 500, h = 600;
-  var left = Math.round((screen.width - w) / 2);
-  var top  = Math.round((screen.height - h) / 2);
-  var redirectUri = encodeURIComponent(window.location.origin + window.location.pathname + 'oauth-callback.html');
+  // Web (incluida la TWA): redirect en la MISMA pestaña. El popup anterior
+  // moría en oauth-callback.html sin entregar jamás el token al opener, y
+  // en TWA los popups ni siquiera conservan la relación con la app.
+  // Google regresa a la app misma con #id_token en el fragment; el arranque
+  // lo detecta y hace login. El redirect_uri debe estar registrado en la
+  // consola de Google (con barra final incluida).
+  try { sessionStorage.setItem('avigo_google_nonce', nonce); } catch(e) {}
+  var redirectUri = encodeURIComponent(window.location.origin + window.location.pathname);
   var url = 'https://accounts.google.com/o/oauth2/v2/auth'
     + '?client_id=' + GOOGLE_CLIENT_ID
     + '&redirect_uri=' + redirectUri
@@ -4007,13 +4035,7 @@ function avigoIniciarGoogle() {
     + '&scope=openid%20email%20profile'
     + '&nonce=' + nonce
     + '&prompt=select_account';
-
-  var popup = window.open(url, 'google_login',
-    'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',scrollbars=yes');
-
-  if (!popup) {
-    showToast('Permite popups para iniciar sesion con Google');
-  }
+  window.location.assign(url);
 }
 
 function avigoBotonLogout() {
