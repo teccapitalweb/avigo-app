@@ -166,6 +166,7 @@ function avigoRefrescarPlanInfo(cb) {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data && data.planInfo) _setPlanInfo(data.planInfo);
+    if (data && !data.error) _setBorradoPendiente(data.borradoPendiente || null);
     if (cb) cb((data && data.planInfo) || null);
   })
   .catch(function() { if (cb) cb(null); }); // offline: se conserva el caché
@@ -198,6 +199,207 @@ function diasRestantesPrueba() {
 function tienePlanPagado() {
   var info = _getPlanInfo();
   return !!(info && info.plan === 'pro' && !info.enTrial);
+}
+
+// ── BORRADO DE CUENTA — gracia de 7 días (requisito Google Play) ──
+// El flag viaja en login y /auth/me como borradoPendiente:{fechaLimite,
+// solicitadoEn}; aquí solo se cachea para pintar el banner.
+
+function _getBorradoPendiente() {
+  try { return JSON.parse(localStorage.getItem('avigo_borrado_pendiente') || 'null'); } catch(e) { return null; }
+}
+
+function _setBorradoPendiente(bp) {
+  try {
+    if (bp) localStorage.setItem('avigo_borrado_pendiente', JSON.stringify(bp));
+    else localStorage.removeItem('avigo_borrado_pendiente');
+  } catch(e) {}
+}
+
+function _fechaBorradoBonita(iso) {
+  try {
+    var f = new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
+    if (f && f !== 'Invalid Date') return f;
+  } catch(e) {}
+  return String(iso).slice(0, 10);
+}
+
+function _cerrarOverlayBorrado() {
+  var el = document.getElementById('avigo-borrado-overlay');
+  if (el) el.parentNode.removeChild(el);
+}
+
+var _OVERLAY_BORRADO_CSS = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(17,24,39,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px';
+var _CAJA_BORRADO_CSS = 'background:rgba(255,255,255,.94);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.65);border-radius:22px;box-shadow:0 20px 60px rgba(0,0,0,.25);padding:24px;max-width:330px;width:100%;text-align:center;max-height:85vh;overflow-y:auto';
+
+// Modal 1: informativo — qué se borra, la gracia de 7 días y el aviso Pro.
+function _abrirModalEliminarCuenta() {
+  _cerrarOverlayBorrado();
+  var svgX = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2.4" stroke-linecap="round" style="flex-shrink:0;margin-top:2px"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+  var lista = '';
+  ['Tus granjas y lotes', 'Todos los registros históricos de producción', 'Clientes, ventas y finanzas', 'Tu cuenta y datos personales'].forEach(function(t) {
+    lista += '<div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0">' + svgX + '<div style="font-size:12px;color:#374151;text-align:left;line-height:1.4">' + t + '</div></div>';
+  });
+  var avisoPro = '';
+  if (tienePlanPagado()) {
+    avisoPro = '<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;padding:10px 12px;margin-top:10px;display:flex;gap:8px;align-items:flex-start">'
+      + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>'
+      + '<div style="font-size:11px;color:#92400E;text-align:left;line-height:1.45">Tienes un plan Pro activo: al eliminar tu cuenta pierdes el acceso restante y <b>no hay reembolso automático</b>.</div></div>';
+  }
+  var ov = document.createElement('div');
+  ov.id = 'avigo-borrado-overlay';
+  ov.style.cssText = _OVERLAY_BORRADO_CSS;
+  var box = document.createElement('div');
+  box.style.cssText = _CAJA_BORRADO_CSS;
+  box.innerHTML =
+    '<div style="width:52px;height:52px;border-radius:16px;background:#FEF2F2;border:1.5px solid #FECACA;display:flex;align-items:center;justify-content:center;margin:0 auto 12px">'
+    + '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg></div>'
+    + '<div style="font-size:17px;font-weight:900;color:#111827;margin-bottom:6px">¿Eliminar tu cuenta?</div>'
+    + '<div style="font-size:12px;color:#6B7280;line-height:1.5;margin-bottom:12px">Esto borrará de forma permanente:</div>'
+    + '<div style="background:#F9FAFB;border-radius:12px;padding:8px 12px">' + lista + '</div>'
+    + '<div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:12px;padding:10px 12px;margin-top:10px;display:flex;gap:8px;align-items:flex-start">'
+    + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+    + '<div style="font-size:11px;color:#166534;text-align:left;line-height:1.45">Tienes <b>7 días de gracia</b>: si te arrepientes, inicia sesión antes de la fecha límite y toca "Cancelar eliminación".</div></div>'
+    + avisoPro
+    + '<button id="btn-borrado-continuar" style="width:100%;margin-top:16px;padding:13px;background:#DC2626;border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit">Continuar con la eliminación</button>'
+    + '<button id="btn-borrado-conservar" style="width:100%;margin-top:8px;padding:13px;background:#F3F4F6;border:none;border-radius:12px;color:#374151;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Conservar mi cuenta</button>';
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  document.getElementById('btn-borrado-continuar').onclick = _abrirModalConfirmarBorrado;
+  document.getElementById('btn-borrado-conservar').onclick = _cerrarOverlayBorrado;
+}
+
+// Modal 2: confirmación fuerte. Una sonda con body {} deja que el backend
+// diga qué confirmación aplica (contraseña vs texto ELIMINAR) — es la única
+// fuente confiable, el frontend no sabe si la cuenta tiene password.
+function _abrirModalConfirmarBorrado() {
+  _cerrarOverlayBorrado();
+  var ov = document.createElement('div');
+  ov.id = 'avigo-borrado-overlay';
+  ov.style.cssText = _OVERLAY_BORRADO_CSS;
+  var box = document.createElement('div');
+  box.id = 'avigo-borrado-caja';
+  box.style.cssText = _CAJA_BORRADO_CSS;
+  box.innerHTML = '<div style="padding:16px 0;font-size:12px;color:#6B7280">Verificando tu cuenta...</div>';
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  fetch(AVIGO_API + '/auth/cuenta', { method: 'DELETE', headers: avigoHeaders(), body: JSON.stringify({}) })
+  .then(function(r) { return r.json().then(function(d) { return { status: r.status, data: d }; }); })
+  .then(function(res) {
+    var err = (res.data && res.data.error) || '';
+    _renderPaso2Borrado(err.indexOf('ELIMINAR') >= 0 ? 'confirmacion' : 'password', null);
+  })
+  .catch(function() {
+    _cerrarOverlayBorrado();
+    showToast('Sin conexión. Intenta de nuevo.');
+  });
+}
+
+function _renderPaso2Borrado(modo, mensajeError) {
+  var box = document.getElementById('avigo-borrado-caja');
+  if (!box) return;
+  var esPass = modo === 'password';
+  box.innerHTML =
+    '<div style="width:52px;height:52px;border-radius:16px;background:#FEF2F2;border:1.5px solid #FECACA;display:flex;align-items:center;justify-content:center;margin:0 auto 12px">'
+    + '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>'
+    + '<div style="font-size:17px;font-weight:900;color:#111827;margin-bottom:6px">Confirmación final</div>'
+    + '<div style="font-size:12px;color:#6B7280;line-height:1.5;margin-bottom:14px">'
+    + (esPass ? 'Escribe tu contraseña actual para confirmar la eliminación de tu cuenta.' : 'Tu cuenta usa Google. Escribe <b>ELIMINAR</b> (en mayúsculas) para confirmar.')
+    + '</div>'
+    + '<input id="borrado-input" type="' + (esPass ? 'password' : 'text') + '" placeholder="' + (esPass ? 'Tu contraseña' : 'Escribe ELIMINAR') + '" autocomplete="off" style="width:100%;padding:13px 14px;background:#fff;border:1.5px solid #E5E7EB;border-radius:12px;font-size:14px;color:#111827;font-family:inherit;font-weight:600;outline:none;text-align:center">'
+    + '<div id="borrado-err" style="display:' + (mensajeError ? 'block' : 'none') + ';font-size:11px;color:#DC2626;font-weight:700;margin-top:8px">' + (mensajeError || '') + '</div>'
+    + '<button id="btn-borrado-ejecutar" style="width:100%;margin-top:14px;padding:13px;background:#DC2626;border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit">Eliminar mi cuenta definitivamente</button>'
+    + '<button id="btn-borrado-cancelar2" style="width:100%;margin-top:8px;padding:13px;background:#F3F4F6;border:none;border-radius:12px;color:#374151;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Cancelar</button>';
+  document.getElementById('btn-borrado-ejecutar').onclick = function() { _ejecutarBorrado(modo); };
+  document.getElementById('btn-borrado-cancelar2').onclick = _cerrarOverlayBorrado;
+  var inp = document.getElementById('borrado-input');
+  if (inp) inp.focus();
+}
+
+function _ejecutarBorrado(modo) {
+  var inp = document.getElementById('borrado-input');
+  var errEl = document.getElementById('borrado-err');
+  var btn = document.getElementById('btn-borrado-ejecutar');
+  var val = inp ? inp.value : '';
+  function fallo(msg) {
+    if (errEl) { errEl.style.display = 'block'; errEl.textContent = msg; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Eliminar mi cuenta definitivamente'; }
+  }
+  if (!val) return fallo(modo === 'password' ? 'Escribe tu contraseña' : 'Escribe ELIMINAR para confirmar');
+  if (modo === 'confirmacion' && val.trim() !== 'ELIMINAR') return fallo('Debes escribir exactamente ELIMINAR');
+  if (btn) { btn.disabled = true; btn.textContent = 'Eliminando...'; }
+  var body = modo === 'password' ? { password: val } : { confirmacion: 'ELIMINAR' };
+  fetch(AVIGO_API + '/auth/cuenta', { method: 'DELETE', headers: avigoHeaders(), body: JSON.stringify(body) })
+  .then(function(r) { return r.json().then(function(d) { return { status: r.status, data: d }; }); })
+  .then(function(res) {
+    if (res.status === 200) {
+      _setBorradoPendiente({ fechaLimite: res.data.fechaBorrado, solicitadoEn: res.data.borradoSolicitadoEn });
+      _mostrarDespedidaBorrado(res.data);
+      return;
+    }
+    var err = (res.data && res.data.error) || 'No se pudo procesar la solicitud';
+    // El backend puede pedir el otro método (p. ej. la cuenta sí/no tiene password).
+    if (res.status === 400 && modo === 'password' && err.indexOf('ELIMINAR') >= 0) return _renderPaso2Borrado('confirmacion', null);
+    if (res.status === 400 && modo === 'confirmacion' && err.toLowerCase().indexOf('contrasena') >= 0) return _renderPaso2Borrado('password', null);
+    fallo(err);
+  })
+  .catch(function() { fallo('Sin conexión. Intenta de nuevo.'); });
+}
+
+function _mostrarDespedidaBorrado(data) {
+  _cerrarOverlayBorrado();
+  var fecha = _fechaBorradoBonita(data.fechaBorrado);
+  var ov = document.createElement('div');
+  ov.id = 'avigo-borrado-overlay';
+  ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:linear-gradient(180deg,#F9FAFB,#FEF2F2);z-index:99999;display:flex;align-items:center;justify-content:center;padding:32px;text-align:center';
+  var box = document.createElement('div');
+  box.style.cssText = 'max-width:320px;width:100%';
+  box.innerHTML =
+    '<div style="width:64px;height:64px;border-radius:20px;background:rgba(255,255,255,.8);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1.5px solid #FECACA;box-shadow:0 10px 30px rgba(220,38,38,.12);display:flex;align-items:center;justify-content:center;margin:0 auto 18px">'
+    + '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M10 14l4 4M14 14l-4 4"/></svg></div>'
+    + '<div style="font-size:20px;font-weight:900;color:#111827;margin-bottom:10px">Solicitud recibida</div>'
+    + '<div style="font-size:13px;color:#374151;line-height:1.6;margin-bottom:6px">Tu cuenta se eliminará el<br><b style="font-size:15px;color:#DC2626">' + fecha + '</b></div>'
+    + '<div style="font-size:12px;color:#6B7280;line-height:1.6;margin-bottom:24px">Si te arrepientes, inicia sesión antes de esa fecha y toca "Cancelar eliminación". Después de esa fecha, todos tus datos se borran definitivamente.</div>'
+    + '<button id="btn-despedida-ok" style="width:100%;padding:14px;background:#111827;border:none;border-radius:14px;color:#fff;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit">Entendido, cerrar sesión</button>';
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  document.getElementById('btn-despedida-ok').onclick = function() {
+    _cerrarOverlayBorrado();
+    _setBorradoPendiente(null); // higiene: otro usuario puede entrar en este dispositivo
+    avigoLogout();
+  };
+}
+
+// Banner persistente arriba de cada pantalla con sesión (excepto auth).
+// Se llama desde nav() Y desde el wrapper de animaciones que lo redefine.
+function _inyectarBannerBorrado(sc, name) {
+  if (['intro', 'splash', 'login', 'registro', 'forgot', 'reset'].indexOf(name) >= 0) return;
+  if (!avigoTieneSession()) return;
+  var _bp = _getBorradoPendiente();
+  if (!_bp || !_bp.fechaLimite) return;
+  sc.insertAdjacentHTML('afterbegin',
+    '<div id="avigo-banner-borrado" style="background:rgba(220,38,38,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:9px 12px;display:flex;align-items:center;gap:8px;flex-shrink:0">'
+    + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>'
+    + '<div style="flex:1;font-size:10px;font-weight:700;color:#fff;line-height:1.35">Tu cuenta se eliminará el ' + _fechaBorradoBonita(_bp.fechaLimite) + '</div>'
+    + '<button onclick="_cancelarBorradoCuenta()" style="background:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:10px;font-weight:800;color:#DC2626;cursor:pointer;font-family:inherit;flex-shrink:0">Cancelar eliminación</button>'
+    + '</div>');
+}
+
+// Banner persistente: POST cancelar-borrado exige body {} (Fastify rechaza vacío).
+function _cancelarBorradoCuenta() {
+  fetch(AVIGO_API + '/auth/cuenta/cancelar-borrado', { method: 'POST', headers: avigoHeaders(), body: JSON.stringify({}) })
+  .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+  .then(function(res) {
+    if (res.ok || (res.data && res.data.error && res.data.error.indexOf('No hay una solicitud') >= 0) ) {
+      _setBorradoPendiente(null);
+      var b = document.getElementById('avigo-banner-borrado');
+      if (b) b.parentNode.removeChild(b);
+      showToast(res.ok ? '✓ Eliminación cancelada. Tu cuenta sigue activa.' : 'No había solicitud activa');
+    } else {
+      showToast((res.data && res.data.error) || 'No se pudo cancelar. Intenta de nuevo.');
+    }
+  })
+  .catch(function() { showToast('Sin conexión. Intenta de nuevo.'); });
 }
 
 function _confirmarCancelarPlan() {
@@ -262,6 +464,7 @@ function avigoLoginGoogle(credential) {
 
       _avigoSession = { token: data.token, usuario: data.usuario };
       try { localStorage.setItem('avigo_session', JSON.stringify(_avigoSession)); } catch(e) {}
+      _setBorradoPendiente(data.borradoPendiente || null);
       // Actualizar LS_KEY con el ID del nuevo usuario
       LS_KEY = 'avigo_v1_' + data.usuario.id;
 
@@ -966,6 +1169,7 @@ function nav(name){
   if(!sc) return;
   sc.innerHTML = fn();
   sc.className = 'screen';
+  _inyectarBannerBorrado(sc, name);
   if(afterRender && afterRender[name]) afterRender[name]();
   if(name === 'perfil'){ setTimeout(bindRecordatorios, 200); setTimeout(bindLotes, 200); }
     if(name === 'daily' && granja.sistema === 'pastoreo') setTimeout(_bindFuentesTraspatio, 100);
@@ -3450,6 +3654,13 @@ sc+='<button onclick="avigoBotonLogout()" style="width:100%;padding:13px;backgro
   sc+='<button id="btn-reiniciar" onclick="resetApp()" style="width:100%;padding:13px;background:#FEF2F2;border:1.5px solid #FECACA;border-radius:12px;color:#DC2626;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">🗑 Reiniciar la app</button>';
   sc+='</div>';
 
+  sc+='<div style="font-size:11px;font-weight:700;color:#F87171;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Zona de peligro</div>';
+  sc+='<div style="background:rgba(255,255,255,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid #FECACA;border-radius:16px;padding:14px;margin-bottom:12px">';
+  sc+='<div style="font-size:11px;color:#9CA3AF;line-height:1.5;margin-bottom:10px">Eliminar tu cuenta borra de forma permanente tus granjas, registros históricos y todos tus datos de AviGo Cloud, con 7 días de gracia para arrepentirte.</div>';
+  sc+='<button onclick="_abrirModalEliminarCuenta()" style="width:100%;padding:12px;background:transparent;border:1.5px solid #FECACA;border-radius:12px;color:#DC2626;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">';
+  sc+='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>Eliminar mi cuenta</button>';
+  sc+='</div>';
+
   sc+='<div style="text-align:center;padding:12px 0 4px">';
   sc+='<div style="font-size:22px;margin-bottom:4px">🐓</div>';
   sc+='<div style="font-size:13px;font-weight:900;color:#16A34A">AviGo</div>';
@@ -3663,6 +3874,7 @@ function avigoLoginEmail() {
       try { localStorage.setItem('avigo_ultimo_usuario', res.data.usuario.id); } catch(e) {}
       _avigoSession = { token: res.data.token, usuario: res.data.usuario };
       try { localStorage.setItem('avigo_session', JSON.stringify(_avigoSession)); } catch(e) {}
+      _setBorradoPendiente(res.data.borradoPendiente || null);
       // Actualizar LS_KEY con el ID del nuevo usuario
       LS_KEY = 'avigo_v1_' + res.data.usuario.id;
 
@@ -6329,6 +6541,7 @@ var _lastScreen = 'dash';
       sc.style.opacity = '';
       sc.style.transition = '';
       _lastScreen = name;
+      _inyectarBannerBorrado(sc, name);
       if(afterRender && afterRender[name]) afterRender[name]();
       if(name === 'perfil'){ setTimeout(bindRecordatorios, 200); setTimeout(bindLotes, 200); }
       if(name === 'daily' && granja.sistema === 'pastoreo') setTimeout(_bindFuentesTraspatio, 100);
