@@ -2559,7 +2559,7 @@ function calcGAve(val, totalAves){
 const afterRender = {};
 
 function selGalpones(btn){
-  btn.closest('.flex').querySelectorAll('.btn').forEach(function(b){
+  btn.closest('.inp-group').querySelectorAll('.btn').forEach(function(b){
     b.classList.remove('sel');
     b.style.background=''; b.style.borderColor=''; b.style.color='';
   });
