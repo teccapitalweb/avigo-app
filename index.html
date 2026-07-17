@@ -786,7 +786,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   var urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('reset')) {
-    setTimeout(function(){ nav('reset'); }, 500);
+    _navDiferido('reset', 500);
   }
   setTimeout(avigoRenovarTokenSiNecesario, 3000);
   setTimeout(avigoRefrescarPlanInfo, 1500);
@@ -3451,7 +3451,7 @@ function guardarRegistro(){
     btnReg.disabled = true;
   }
   showToast('✓ Registro guardado correctamente');
-  setTimeout(function(){ nav('dash'); }, 1000);
+  _navDiferido('dash', 1000);
 }
 
 
@@ -4368,7 +4368,7 @@ function marcarVacuna(idx){
   granja.vacunas[idx].lote      = vl&&vl.value ? vl.value : '';
   guardarEnStorage();
   showToast('✓ Vacuna marcada como aplicada');
-  setTimeout(function(){ nav('vac'); }, 600);
+  _navDiferido('vac', 600);
 }
 
 function exportarReporte(){
@@ -4947,7 +4947,7 @@ guardarRegistro = function(){
   agregarAlHistorial(h, b, kg);
   guardarEnStorage();
   showToast('Registro guardado correctamente');
-  setTimeout(function(){ nav('dash'); }, 1200);
+  _navDiferido('dash', 1200);
 };
 
 screens.calendario = function(){
@@ -5727,7 +5727,7 @@ function guardarRegistroTraspatio(){
     btnTp.disabled = true;
   }
   showToast('✓ Registro guardado correctamente');
-  setTimeout(function(){ nav('dash'); }, 1000);
+  _navDiferido('dash', 1000);
 }
 
 function actualizarAgua(val){
@@ -6611,9 +6611,32 @@ window.addEventListener('DOMContentLoaded', function(){
 var NAV_ORDER = ['intro','splash','login','registro','forgot','reset','ob1','ob2','ob3','ob4','dash','daily','historial','ia','tendencia','renta','bio','vac','perfil','planes','nuevo_lote','parvada','alimentacion_natural','salud_natural','economia_traspatio','ventas_traspatio','clientes_traspatio','clientes_jaula','calendario'];
 var _lastScreen = 'dash';
 
+// ─── NAVEGACIÓN DIFERIDA ─────────────────────────────────────
+// Varios flujos muestran "✓ Guardado" y navegan un segundo después. La navBar
+// sigue viva durante esa espera: si el usuario toca otra pantalla, el timer
+// pendiente lo arrancaba de donde acababa de entrar ("la app se sale de lo que
+// estaba"). nav() cancela el diferido pendiente al entrar, así que gana
+// siempre lo último que tocó el usuario.
+var _navTimerDiferido = null;
+function _navDiferido(name, ms){
+  clearTimeout(_navTimerDiferido);
+  _navTimerDiferido = setTimeout(function(){
+    _navTimerDiferido = null;
+    nav(name);
+  }, ms);
+}
+
 (function(){
   var _navOrig = nav;
+  var _navTimerRender = null;
   nav = function(name){
+    // Cancelar la navegación diferida pendiente: manda el usuario.
+    clearTimeout(_navTimerDiferido);
+    _navTimerDiferido = null;
+    // Cancelar un render en vuelo: dos nav() dentro de la ventana de 80ms
+    // pintaban las dos pantallas (flash) y corrían afterRender de la primera
+    // contra el DOM de la segunda, dejando sus handlers sin conectar.
+    clearTimeout(_navTimerRender);
     var rutasProtegidas = ['dash','daily','historial','ia','tendencia','renta','bio','vac','perfil','planes','nuevo_lote',
       'parvada','alimentacion_natural','salud_natural','economia_traspatio','clientes_traspatio','ventas_traspatio','clientes_jaula'];
     if(rutasProtegidas.indexOf(name) >= 0 && !avigoTieneSession()){
@@ -6642,7 +6665,8 @@ var _lastScreen = 'dash';
     sc.style.opacity = '0';
     sc.style.transition = 'opacity .08s ease';
 
-    setTimeout(function(){
+    _navTimerRender = setTimeout(function(){
+      _navTimerRender = null;
       sc.innerHTML   = fn();
       sc.className   = 'screen ' + animClass;
       sc.style.opacity = '';
