@@ -24,6 +24,42 @@ var GOOGLE_CLIENT_ID = '656598071921-ditio8pdi3mfeed3ijjpd4vaf1j7t39g.apps.googl
 var VAPID_PUBLIC_KEY = 'BJset3wFyv_go1jDHfZIptkmdz2UydJ4Q8A-2WmGODLbRyeJsebz4IcfzzpYx3k0Xbf2KU9RFgUVZxRAnhxg_QA';
 var _pushSuscripcion = null;
 
+// ─── REPORTE GLOBAL DE ERRORES ───────────────────────────────
+// Sin esto, un fallo en el dispositivo del usuario es invisible: no hay toast,
+// no hay log, no hay nada. Se define aquí arriba a propósito, para cubrir
+// también los errores de arranque.
+var _avigoErroresEnviados = 0;
+function _avigoReportarError(tipo, msg, stack) {
+  try {
+    if (_avigoErroresEnviados >= 10) return;  // tope por sesión: no inundar
+    _avigoErroresEnviados++;
+    var payload = {
+      tipo:     tipo,
+      msg:      String(msg == null ? '' : msg).slice(0, 300),
+      stack:    String(stack == null ? '' : stack).slice(0, 800),
+      pantalla: (typeof _lastScreen !== 'undefined') ? _lastScreen : null,
+      ruta:     location.pathname + location.search,
+      twa:      typeof window.ReactNativeWebView !== 'undefined',
+      ua:       (navigator.userAgent || '').slice(0, 200),
+      ts:       new Date().toISOString()
+    };
+    try { console.error('[AviGo][error]', payload); } catch(e) {}
+    // text/plain evita el preflight CORS y sobrevive al unload.
+    // Si la ruta aún no existe en el backend, el beacon falla en silencio.
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(AVIGO_API + '/errores',
+        new Blob([JSON.stringify(payload)], { type: 'text/plain' }));
+    }
+  } catch(e) {}
+}
+window.addEventListener('error', function(ev) {
+  _avigoReportarError('error', ev && ev.message, ev && ev.error && ev.error.stack);
+});
+window.addEventListener('unhandledrejection', function(ev) {
+  var r = ev && ev.reason;
+  _avigoReportarError('rejection', (r && r.message) || r, r && r.stack);
+});
+
 function urlBase64ToUint8Array(base64String) {
   var padding = '='.repeat((4 - base64String.length % 4) % 4);
   var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -4795,6 +4831,21 @@ screens.alertas_screen = function(){ return screens.dash(); };
     if(document.visibilityState==='hidden'){ try{ guardarEnStorage(); }catch(e){} }
   });
 
+  // Al volver a la app, re-consultar el plan. Es el único camino por el que un
+  // usuario de TWA ve su Pro sin matar la app: el checkout abre FUERA del
+  // webview, así que el retorno con ?pago=exitoso nunca llega aquí. En web
+  // cubre la pestaña original, que se quedaba en "free" para siempre.
+  var _ultimaVerifPago = 0;
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState !== 'visible') return;
+    if(typeof avigoTieneSession !== 'function' || !avigoTieneSession()) return;
+    if(typeof esPro === 'function' && esPro()) return;   // ya es Pro: nada que refrescar
+    var ahora = Date.now();
+    if(ahora - _ultimaVerifPago < 5000) return;          // throttle: no pegarle a /auth/me en cada foco
+    _ultimaVerifPago = ahora;
+    try{ verificarPago(0); }catch(e){}
+  });
+
   if(!('serviceWorker' in navigator)) return;
   // Registro único del SW (sw.js: push + caché offline). inicializarPush()
   // registra la misma URL, así que ambas llamadas comparten registro.
@@ -6262,17 +6313,50 @@ function iniciarPago(tipo) {
   });
 }
 
-function verificarPago() {
+function _haySenalPago() {
+  try { return window.location.search.indexOf('pago=exitoso') >= 0; } catch(e) { return false; }
+}
+
+// La señal solo se borra cuando ya sirvió. Si se borra antes (o el usuario
+// vuelve sin sesión), el pago queda sin verificar y no hay forma de recuperarlo.
+function _limpiarSenalPago() {
+  try {
+    if (window.location.search.indexOf('pago=') >= 0) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  } catch(e) {}
+}
+
+// reintentos: cuántas veces volver a preguntar si el webhook de Stripe todavía
+// no aterrizó. Solo el retorno del checkout los pide; el resto llama sin ellos.
+function verificarPago(reintentos) {
   if (!avigoTieneSession()) return;
   var eraPro = esPro();
+  var quedan = (typeof reintentos === 'number') ? reintentos : 0;
   avigoRefrescarPlanInfo(function(info) {
-    if (info && info.plan === 'pro' && !info.enTrial && !eraPro) {
-      _mostrarBienvenidaPro();
+    if (info && info.plan === 'pro' && !info.enTrial) {
+      _limpiarSenalPago();
+      _cerrarUpgradeOverlay();   // si el arranque alcanzó a pintar el lock, quitarlo
+      if (!eraPro) _mostrarBienvenidaPro();
+      return;
+    }
+    if (quedan > 0) {
+      setTimeout(function() { verificarPago(quedan - 1); }, 2500);
+      return;
+    }
+    // Se agotaron los intentos y veníamos de un checkout: no dejar la señal
+    // pegada para siempre, pero avisar en vez de fallar en silencio.
+    if (_haySenalPago()) {
+      _limpiarSenalPago();
+      showToast('Tu pago sigue procesándose. Si no ves Pro en unos minutos, escríbenos.');
     }
   });
 }
 
 function _mostrarBienvenidaPro() {
+  // El id del botón es fijo: dos overlays a la vez dejarían el de encima sin
+  // onclick (getElementById devuelve el primero) y la app trabada.
+  if (document.getElementById('btn-bienvenida-pro')) return;
   var ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px';
   var box = document.createElement('div');
@@ -6461,10 +6545,11 @@ window.addEventListener('DOMContentLoaded', function(){
     var urlParams = new URLSearchParams(window.location.search);
     var estadoPago = urlParams.get('pago');
     if (estadoPago === 'exitoso') {
-      window.history.replaceState({}, '', window.location.pathname);
+      // La URL se limpia dentro de verificarPago, solo al confirmarse el Pro.
+      // Si aquí no hay sesión, la señal sobrevive y el próximo arranque la usa.
       setTimeout(function() {
         if (avigoTieneSession()) {
-          verificarPago();
+          verificarPago(4);   // hasta 5 intentos: el webhook puede tardar
           showToast('Verificando tu pago...');
         }
       }, 2000);
