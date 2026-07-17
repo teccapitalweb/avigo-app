@@ -1,0 +1,14 @@
+{
+  "name": "avigo-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pruebas e2e de AviGo (Playwright). No forma parte del sitio publicado.",
+  "scripts": {
+    "test": "playwright test",
+    "test:prod": "node correr-en-prod.js",
+    "install:browser": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
+  }
+}
